@@ -618,6 +618,11 @@ def home():
     with open('templates/index.html', 'r', encoding='utf-8') as f:
         return f.read()
 
+@app.route('/api/agent8/health', methods=['GET'])
+def health_check():
+    """Health check endpoint for Render"""
+    return jsonify({'status': 'ok', 'service': 'agent8-backend'}), 200
+
 # ============================================================================
 # AGENT 8 INTELLIGENCE API ENDPOINTS
 # ============================================================================

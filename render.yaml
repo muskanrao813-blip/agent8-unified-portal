@@ -1,0 +1,28 @@
+services:
+  - type: web
+    name: agent8-backend
+    env: docker
+    dockerfilePath: ./Dockerfile
+    region: oregon
+    plan: free
+    healthCheckPath: /api/agent8/health
+    envVars:
+      - key: FLASK_ENV
+        value: production
+      - key: PORT
+        value: 8000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: agent8-postgres
+          property: connectionString
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: DIETICIAN_QA_BACKEND
+        value: https://consultation-call-quality-analysis-system.onrender.com
+
+databases:
+  - name: agent8-postgres
+    databaseName: agent8_db
+    user: agent8_user
+    plan: free
+    region: oregon
