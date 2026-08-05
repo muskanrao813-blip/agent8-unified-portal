@@ -62,11 +62,15 @@ DIETICIAN_QA_BACKEND = os.getenv('DIETICIAN_QA_BACKEND', 'http://localhost:8000'
 DIETICIAN_QA_API_URL = os.getenv('DIETICIAN_QA_API_URL', 'https://consultation-call-quality-analysis-system.onrender.com/api/calls/')
 
 # Trino Connection Configuration
-TRINO_HOST = os.getenv('TRINO_HOST', 'trino-prod.healthrx.co.in')
-TRINO_PORT = int(os.getenv('TRINO_PORT', 443))
-TRINO_USER = os.getenv('TRINO_USER', 'vasu.verma')
-TRINO_PASSWORD = os.getenv('TRINO_PASSWORD', 'vvaass6543')
+# Trino config (optional - only needed for local data scripts)
+# Production Render backend does NOT connect to Trino
+# Data is pre-fetched by local scripts and stored in PostgreSQL
+TRINO_HOST = os.getenv('TRINO_HOST', None)
+TRINO_PORT = int(os.getenv('TRINO_PORT', 443)) if os.getenv('TRINO_PORT') else 443
+TRINO_USER = os.getenv('TRINO_USER', None)
+TRINO_PASSWORD = os.getenv('TRINO_PASSWORD', None)
 TRINO_CATALOG = 'deltalake'
+TRINO_ENABLED = all([TRINO_HOST, TRINO_USER, TRINO_PASSWORD])
 
 # MC Dietician & Doctor Master List (25 total) - SINGLE SOURCE OF TRUTH
 MC_DIETICIANS = [
