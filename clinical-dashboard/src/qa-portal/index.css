@@ -1,0 +1,92 @@
+@import url('https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500;1,700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", system-ui, sans-serif;
+  --font-serif: "Playfair Display", Georgia, serif;
+  --font-mono: "JetBrains Mono", monospace;
+  --color-surface: #ffffff;
+  --color-surface-dim: #E6E1DC;
+  --color-surface-bright: #ffffff;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #FAF8F6;
+  --color-surface-container: #F3ECE7;
+  --color-surface-container-high: #EAE3DD;
+  --color-surface-container-highest: #DFD4CA;
+  --color-on-surface: #1A1A1A;
+  --color-on-surface-variant: #5C5854;
+  --color-inverse-surface: #1A1A1A;
+  --color-inverse-on-surface: #F7F3F0;
+  --color-outline: #8B7E66;
+  --color-outline-variant: rgba(26, 26, 26, 0.1);
+  --color-surface-tint: #8B7E66;
+  --color-primary: #1A1A1A;
+  --color-on-primary: #F7F3F0;
+  --color-primary-container: #F3ECE7;
+  --color-on-primary-container: #8B7E66;
+  --color-inverse-primary: #8B7E66;
+  --color-secondary: #8B7E66;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #FAF8F6;
+  --color-on-secondary-container: #1A1A1A;
+  --color-tertiary: #8B7E66;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #F3ECE7;
+  --color-on-tertiary-container: #8B7E66;
+  --color-error: #A34E36;
+  --color-on-error: #ffffff;
+  --color-error-container: #F9EAE6;
+  --color-on-error-container: #A34E36;
+  --color-primary-fixed: #EAE3DD;
+  --color-primary-fixed-dim: #DFD4CA;
+  --color-on-primary-fixed: #1A1A1A;
+  --color-on-primary-fixed-variant: #5C5854;
+  --color-secondary-fixed: #FAF8F6;
+  --color-secondary-fixed-dim: #EAE3DD;
+  --color-on-secondary-fixed: #1A1A1A;
+  --color-on-secondary-fixed-variant: #5C5854;
+  --color-tertiary-fixed: #F3ECE7;
+  --color-tertiary-fixed-dim: #DFD4CA;
+  --color-on-tertiary-fixed: #1A1A1A;
+  --color-on-tertiary-fixed-variant: #5C5854;
+  --color-background: #F7F3F0;
+  --color-on-background: #1A1A1A;
+  --color-surface-variant: #EAE3DD;
+}
+
+/* Material symbols setting helper */
+.material-symbols-outlined {
+  font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+  display: inline-block;
+  line-height: 1;
+  text-transform: none;
+  letter-spacing: normal;
+  word-wrap: normal;
+  white-space: nowrap;
+  direction: ltr;
+}
+
+/* Scrollbar tweaks */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: #cbd5e1;
+  border-radius: 10px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: #94a3b8;
+}
+
+/* Pulse animation for active waveform blocks */
+@keyframes pulse-wave {
+  0%, 100% { height: 4px; }
+  50% { height: 24px; }
+}
+.waveform-active {
+  animation: pulse-wave 1.2s infinite ease-in-out;
+}
