@@ -54,7 +54,9 @@ def connect_trino():
             user=TRINO_USER,
             auth=BasicAuthentication(TRINO_USER, TRINO_PASSWORD),
             catalog=TRINO_CATALOG,
-            schema='healthrx',
+            schema='dl_standard_pbireporting',
+            http_scheme='https',
+            verify=False
         )
         logger.info("✅ Connected to Trino")
         return conn
@@ -118,16 +120,16 @@ def fetch_appointments(trino_conn):
     try:
         query = """
             SELECT
-                appointment_id,
-                assigned_provider_name as dietician_name,
-                patient_id,
-                patient_name,
-                appointment_date,
-                appointment_status as status,
-                duration as duration_minutes
+                appointmentid as appointment_id,
+                doctorname as dietician_name,
+                patientid as patient_id,
+                patientname as patient_name,
+                appointmentdate as appointment_date,
+                appointmentstatus as status,
+                CAST(appointmentduration AS INT) as duration_minutes
             FROM f_appointmentflattable
-            WHERE assigned_provider_name IN ({})
-            AND appointment_date >= DATE_FORMAT(CURRENT_DATE - INTERVAL '90' DAY, '%Y-%m-%d')
+            WHERE doctorname IN ({})
+            AND appointmentdate >= CURRENT_DATE - INTERVAL '90' DAY
             LIMIT 10000
         """.format(','.join(f"'{d}'" for d in MC_DIETICIANS))
 
@@ -189,13 +191,13 @@ def fetch_provider_metrics(trino_conn):
     try:
         query = """
             SELECT
-                assigned_provider_name as dietician_name,
+                doctorname as dietician_name,
                 COUNT(*) as total_appointments,
-                SUM(CASE WHEN appointment_status = 'COMPLETED' THEN 1 ELSE 0 END) as completed,
-                AVG(CAST(duration as INT)) as avg_duration
+                SUM(CASE WHEN appointmentstatus = 'COM' THEN 1 ELSE 0 END) as completed,
+                AVG(CAST(appointmentduration AS INT)) as avg_duration
             FROM f_appointmentflattable
-            WHERE assigned_provider_name IN ({})
-            GROUP BY assigned_provider_name
+            WHERE doctorname IN ({})
+            GROUP BY doctorname
         """.format(','.join(f"'{d}'" for d in MC_DIETICIANS))
 
         cursor.execute(query)
