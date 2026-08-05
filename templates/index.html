@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agent 8 - Clinical Operations Intelligence</title>
+
+    <!-- Fonts -->
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:wght@600;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+
+    <style>
+        :root {
+            --primary: #000000;
+            --secondary: #5e5e5b;
+            --background: #fbf9f8;
+            --surface: #fbf9f8;
+            --error: #ba1a1a;
+        }
+
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--background);
+            color: #1b1c1c;
+        }
+
+        .sidebar {
+            position: fixed;
+            left: 0;
+            top: 0;
+            width: 240px;
+            height: 100vh;
+            background: white;
+            border-right: 1px solid #c4c7c7;
+            display: flex;
+            flex-direction: column;
+            padding: 32px 24px;
+            overflow-y: auto;
+        }
+
+        .sidebar-header h1 {
+            font-family: 'Playfair Display', serif;
+            font-size: 20px;
+            font-weight: 600;
+            color: black;
+            margin-bottom: 4px;
+        }
+
+        .sidebar-header p {
+            font-size: 10px;
+            font-weight: 700;
+            color: #5e5e5b;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+        }
+
+        .nav-section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 4px;
+            margin-top: 32px;
+        }
+
+        .nav-link {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            padding: 8px 24px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #5e5e5b;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+            border-left: 4px solid transparent;
+        }
+
+        .nav-link:hover {
+            background: #f0f0f0;
+            color: #000;
+        }
+
+        .nav-link.active {
+            background: #e1dfdb;
+            border-left-color: #000;
+            color: #000;
+        }
+
+        .material-symbols-outlined {
+            font-size: 18px;
+        }
+
+        .main-content {
+            margin-left: 240px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 24px;
+            background: var(--background);
+            border-bottom: 1px solid #c4c7c7;
+            position: sticky;
+            top: 0;
+            z-index: 40;
+            flex-wrap: wrap;
+            gap: 16px;
+        }
+
+        .header h2 {
+            font-family: 'Playfair Display', serif;
+            font-size: 20px;
+            font-weight: 600;
+            color: black;
+        }
+
+        .header-controls {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            flex-wrap: wrap;
+        }
+
+        .header-controls input,
+        .header-controls select {
+            padding: 8px 12px;
+            border: 1px solid #c4c7c7;
+            border-radius: 4px;
+            font-size: 11px;
+            font-weight: 500;
+        }
+
+        .header-controls button {
+            padding: 8px 16px;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            border: none;
+            cursor: pointer;
+            border-radius: 4px;
+            transition: all 0.2s;
+        }
+
+        .btn-primary {
+            background: #000;
+            color: white;
+        }
+
+        .btn-primary:hover {
+            background: #1a1a1a;
+        }
+
+        .btn-secondary {
+            background: #e1dfdb;
+            color: #000;
+            border: 1px solid #c4c7c7;
+        }
+
+        .btn-secondary:hover {
+            background: #d4d1c9;
+        }
+
+        .tab-content {
+            flex: 1;
+            padding: 32px;
+            overflow-y: auto;
+        }
+
+        .tab-panel {
+            display: none;
+            animation: fadeIn 0.3s ease-in;
+        }
+
+        .tab-panel.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .section-title {
+            font-family: 'Playfair Display', serif;
+            font-size: 20px;
+            font-weight: 600;
+            margin-bottom: 24px;
+            margin-top: 32px;
+        }
+
+        .section-title:first-child {
+            margin-top: 0;
+        }
+
+        /* Filter & Search Controls */
+        .filter-controls {
+            background: white;
+            padding: 16px;
+            border: 1px solid #e6e2d3;
+            margin-bottom: 24px;
+            border-radius: 4px;
+            display: flex;
+            gap: 12px;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+
+        .filter-group {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+        }
+
+        .filter-group label {
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #5e5e5b;
+        }
+
+        .filter-group input,
+        .filter-group select {
+            padding: 8px 12px;
+            border: 1px solid #c4c7c7;
+            border-radius: 4px;
+            font-size: 11px;
+        }
+
+        /* Table Styles */
+        .table-container {
+            background: white;
+            border: 1px solid #e6e2d3;
+            border-radius: 4px;
+            overflow: hidden;
+        }
+
+        .perf-table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .perf-table th {
+            background: #efeded;
+            padding: 14px;
+            text-align: left;
+            font-size: 10px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            color: #5e5e5b;
+            border-bottom: 1px solid #e6e2d3;
+            cursor: pointer;
+            user-select: none;
+            position: relative;
+        }
+
+        .perf-table th:hover {
+            background: #e6e3d9;
+        }
+
+        .perf-table th.sortable::after {
+            content: ' ↕';
+            font-size: 10px;
+            opacity: 0.5;
+        }
+
+        .perf-table th.sort-asc::after {
+            content: ' ↑';
+            opacity: 1;
+        }
+
+        .perf-table th.sort-desc::after {
+            content: ' ↓';
+            opacity: 1;
+        }
+
+        .perf-table td {
+            padding: 14px;
+            font-size: 12px;
+            border-bottom: 1px solid #e6e2d3;
+        }
+
+        .perf-table tr:hover {
+            background: #f9f8f7;
+        }
+
+        .perf-table tr.rank-1 {
+            background: #fffbea;
+        }
+
+        .perf-table tr.rank-1 td {
+            border-left: 4px solid #ff9800;
+        }
+
+        .perf-table tr.rank-2 {
+            background: #f0f8ff;
+        }
+
+        .perf-table tr.rank-2 td {
+            border-left: 4px solid #2196f3;
+        }
+
+        .perf-table tr.rank-3 {
+            background: #fce4ec;
+        }
+
+        .perf-table tr.rank-3 td {
+            border-left: 4px solid #e91e63;
+        }
+
+        .badge {
+            display: inline-block;
+            padding: 4px 8px;
+            background: #e1dfdb;
+            font-size: 9px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.6px;
+            border-radius: 3px;
+        }
+
+        .badge-mc {
+            background: #c8e6c9;
+            color: #2e7d32;
+        }
+
+        .badge-ai {
+            background: #bbdefb;
+            color: #1976d2;
+        }
+
+        .badge-contractual {
+            background: #ffe0b2;
+            color: #e65100;
+        }
+
+        .improvement-high {
+            color: #2e7d32;
+            font-weight: 600;
+        }
+
+        .improvement-medium {
+            color: #f57c00;
+            font-weight: 600;
+        }
+
+        .improvement-low {
+            color: #ba1a1a;
+            font-weight: 600;
+        }
+
+        .improvement-nodata {
+            color: #9e9e9e;
+            font-style: italic;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: #5e5e5b;
+        }
+
+        .loading-spinner {
+            display: inline-block;
+            width: 40px;
+            height: 40px;
+            border: 4px solid #e0e0e0;
+            border-top-color: #000;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        .ranking-badge {
+            font-size: 16px;
+            font-weight: 700;
+            padding: 4px 8px;
+            border-radius: 3px;
+            display: inline-block;
+        }
+
+        .ranking-1 {
+            background: #ffd700;
+            color: #000;
+        }
+
+        .ranking-2 {
+            background: #c0c0c0;
+            color: #000;
+        }
+
+        .ranking-3 {
+            background: #cd7f32;
+            color: #fff;
+        }
+
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 200px;
+            }
+            .main-content {
+                margin-left: 200px;
+            }
+            .header {
+                flex-direction: column;
+                align-items: flex-start;
+            }
+            .header-controls {
+                width: 100%;
+            }
+        }
+    </style>
+</head>
+<body>
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h1>Clinical Provider<br>Management</h1>
+            <p>Clinical Command</p>
+        </div>
+
+        <nav class="nav-section">
+            <button class="nav-link active" onclick="switchTab('outcomes')">
+                <span class="material-symbols-outlined">clinical_notes</span>
+                Provider Outcomes
+            </button>
+            <button class="nav-link" onclick="switchTab('programs')">
+                <span class="material-symbols-outlined">folder</span>
+                MC Programs
+            </button>
+            <button class="nav-link" onclick="switchTab('capacity')">
+                <span class="material-symbols-outlined">group</span>
+                Capacity
+            </button>
+        </nav>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <!-- HEADER -->
+        <header class="header">
+            <h2 id="page-title">Provider Outcomes</h2>
+            <div class="header-controls">
+                <div class="filter-group">
+                    <label>Start Date:</label>
+                    <input type="date" id="start-date" onchange="refreshData()">
+                </div>
+                <div class="filter-group">
+                    <label>End Date:</label>
+                    <input type="date" id="end-date" onchange="refreshData()">
+                </div>
+                <div class="filter-group">
+                    <label>Cohort:</label>
+                    <select id="cohort-filter" onchange="filterTable()">
+                        <option value="">All Cohorts</option>
+                        <option value="IN-HOUSE AI">IN-HOUSE AI</option>
+                        <option value="IN-HOUSE OTHERS">IN-HOUSE OTHERS</option>
+                        <option value="IN-HOUSE MC">IN-HOUSE MC</option>
+                        <option value="CONTRACTUAL">CONTRACTUAL</option>
+                    </select>
+                </div>
+                <button class="btn-primary" onclick="exportData()">📥 Export CSV</button>
+            </div>
+        </header>
+
+        <!-- TAB CONTENT -->
+        <div class="tab-content">
+
+            <!-- TAB 1: PROVIDER OUTCOMES -->
+            <div id="outcomes" class="tab-panel active">
+                <h3 class="section-title">Provider Improvement % - Ranked by Performance</h3>
+
+                <!-- Search & Filter -->
+                <div class="filter-controls">
+                    <div class="filter-group" style="flex: 1;">
+                        <input type="text" id="search-input" placeholder="Search by provider name..."
+                               onkeyup="filterTable()" style="flex: 1;">
+                    </div>
+                    <button class="btn-secondary" onclick="resetFilters()">Reset Filters</button>
+                </div>
+
+                <!-- Data Table -->
+                <div class="table-container">
+                    <table class="perf-table" id="outcomes-table">
+                        <thead>
+                            <tr>
+                                <th class="sortable" onclick="sortTable(0)">Rank</th>
+                                <th class="sortable" onclick="sortTable(1)">Provider Name</th>
+                                <th class="sortable" onclick="sortTable(2)">Cohort</th>
+                                <th class="sortable" onclick="sortTable(3)">Improvement %</th>
+                                <th class="sortable" onclick="sortTable(4)">Patients</th>
+                                <th class="sortable" onclick="sortTable(5)">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="outcomes-tbody">
+                            <tr><td colspan="6" class="loading"><div class="loading-spinner"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 2: MC PROGRAMS -->
+            <div id="programs" class="tab-panel">
+                <h3 class="section-title">Manage Care Programs - Performance Overview</h3>
+                <p style="color: #5e5e5b; margin-bottom: 16px; font-size: 12px;">
+                    (Showing data for IN-HOUSE MC dieticians only)
+                </p>
+
+                <div class="filter-controls">
+                    <div class="filter-group" style="flex: 1;">
+                        <input type="text" id="program-search" placeholder="Search programs..."
+                               onkeyup="filterProgramTable()" style="flex: 1;">
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="perf-table" id="programs-table">
+                        <thead>
+                            <tr>
+                                <th class="sortable" onclick="sortProgramTable(0)">Program</th>
+                                <th class="sortable" onclick="sortProgramTable(1)">MC Dietician</th>
+                                <th class="sortable" onclick="sortProgramTable(2)">Improvement %</th>
+                                <th class="sortable" onclick="sortProgramTable(3)">Appointments</th>
+                                <th class="sortable" onclick="sortProgramTable(4)">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="programs-tbody">
+                            <tr><td colspan="5" class="loading"><div class="loading-spinner"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+            <!-- TAB 3: CAPACITY -->
+            <div id="capacity" class="tab-panel">
+                <h3 class="section-title">Provider Capacity Analysis</h3>
+
+                <div class="filter-controls">
+                    <div class="filter-group" style="flex: 1;">
+                        <input type="text" id="capacity-search" placeholder="Search providers..."
+                               onkeyup="filterCapacityTable()" style="flex: 1;">
+                    </div>
+                </div>
+
+                <div class="table-container">
+                    <table class="perf-table" id="capacity-table">
+                        <thead>
+                            <tr>
+                                <th class="sortable" onclick="sortCapacityTable(0)">Provider Name</th>
+                                <th class="sortable" onclick="sortCapacityTable(1)">Cohort</th>
+                                <th class="sortable" onclick="sortCapacityTable(2)">Appointments (June)</th>
+                                <th class="sortable" onclick="sortCapacityTable(3)">Status</th>
+                            </tr>
+                        </thead>
+                        <tbody id="capacity-tbody">
+                            <tr><td colspan="4" class="loading"><div class="loading-spinner"></div></td></tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+    <script>
+        // Initialize dates
+        window.addEventListener('load', () => {
+            const endDate = new Date();
+            const startDate = new Date();
+            startDate.setDate(startDate.getDate() - 30);
+
+            document.getElementById('end-date').valueAsDate = endDate;
+            document.getElementById('start-date').valueAsDate = startDate;
+
+            loadOutcomes();
+            loadPrograms();
+            loadCapacity();
+        });
+
+        // Tab switching
+        function switchTab(tabName) {
+            document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+            document.querySelectorAll('.nav-link').forEach(l => l.classList.remove('active'));
+
+            document.getElementById(tabName).classList.add('active');
+            event.target.closest('.nav-link').classList.add('active');
+
+            const titles = {
+                'outcomes': 'Provider Outcomes',
+                'programs': 'Manage Care Programs',
+                'capacity': 'Provider Capacity'
+            };
+            document.getElementById('page-title').textContent = titles[tabName] || tabName;
+        }
+
+        // Load outcomes data
+        async function loadOutcomes() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+
+            try {
+                const res = await fetch(`/api/agent8/dietician-improvement?start_date=${startDate}&end_date=${endDate}`);
+                const data = await res.json();
+
+                let rows = '';
+                const providers = data.data || [];
+
+                // Add ranking
+                providers.forEach((p, idx) => {
+                    const improvement = p.improvement_pct !== null ? p.improvement_pct : 'N/A';
+                    const improvementClass = p.improvement_pct === null ? 'improvement-nodata' :
+                                            p.improvement_pct >= 30 ? 'improvement-high' :
+                                            p.improvement_pct >= 10 ? 'improvement-medium' :
+                                            'improvement-low';
+
+                    const rank = idx + 1;
+                    let rankBadge = '';
+                    if (rank === 1) rankBadge = '<span class="ranking-badge ranking-1">🥇</span>';
+                    else if (rank === 2) rankBadge = '<span class="ranking-badge ranking-2">🥈</span>';
+                    else if (rank === 3) rankBadge = '<span class="ranking-badge ranking-3">🥉</span>';
+                    else rankBadge = `<span>${rank}</span>`;
+
+                    const cohortBadge = `<span class="badge badge-${p.cohort.toLowerCase().replace(/ /g, '-')}">${p.cohort}</span>`;
+                    const statusBadge = p.status === 'calculated' ?
+                        '<span class="badge" style="background: #c8e6c9; color: #2e7d32;">✓ Calculated</span>' :
+                        '<span class="badge" style="background: #f5f5f5; color: #9e9e9e;">— No Data</span>';
+
+                    rows += `
+                        <tr class="rank-${rank > 3 ? '' : rank}">
+                            <td>${rankBadge}</td>
+                            <td><strong>${p.dietician}</strong></td>
+                            <td>${cohortBadge}</td>
+                            <td class="${improvementClass}">${typeof improvement === 'number' ? improvement.toFixed(1) : improvement}%</td>
+                            <td>–</td>
+                            <td>${statusBadge}</td>
+                        </tr>
+                    `;
+                });
+
+                document.getElementById('outcomes-tbody').innerHTML = rows || '<tr><td colspan="6" style="text-align: center; padding: 40px;">No data available</td></tr>';
+                window.outcomesData = providers;
+            } catch (e) {
+                console.error('Error loading outcomes:', e);
+                document.getElementById('outcomes-tbody').innerHTML = '<tr><td colspan="6" style="text-align: center; color: red;">Error loading data</td></tr>';
+            }
+        }
+
+        // Load programs data (MC only)
+        async function loadPrograms() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+
+            try {
+                const res = await fetch(`/api/agent8/mc-programmes?start_date=${startDate}&end_date=${endDate}`);
+                const data = await res.json();
+
+                let rows = '';
+                const programs = data.data || [];
+
+                programs.forEach((p, idx) => {
+                    const improvement = p.improvement_pct !== null ? p.improvement_pct.toFixed(1) : 'N/A';
+                    const improvementClass = p.improvement_pct === null ? 'improvement-nodata' :
+                                            p.improvement_pct >= 30 ? 'improvement-high' :
+                                            p.improvement_pct >= 10 ? 'improvement-medium' :
+                                            'improvement-low';
+
+                    const statusBadge = p.improvement_pct !== null ?
+                        '<span class="badge" style="background: #c8e6c9; color: #2e7d32;">✓ Calculated</span>' :
+                        '<span class="badge" style="background: #f5f5f5; color: #9e9e9e;">— No Data</span>';
+
+                    rows += `
+                        <tr>
+                            <td><strong>${p.program || 'Standard MC'}</strong></td>
+                            <td>${p.dietician}</td>
+                            <td class="${improvementClass}">${improvement}%</td>
+                            <td>${p.appointments || '–'}</td>
+                            <td>${statusBadge}</td>
+                        </tr>
+                    `;
+                });
+
+                document.getElementById('programs-tbody').innerHTML = rows || '<tr><td colspan="5" style="text-align: center; padding: 40px;">No programs data available</td></tr>';
+                window.programsData = programs;
+            } catch (e) {
+                console.error('Error loading programs:', e);
+                document.getElementById('programs-tbody').innerHTML = '<tr><td colspan="5" style="text-align: center; color: red;">Error loading data</td></tr>';
+            }
+        }
+
+        // Load capacity data
+        async function loadCapacity() {
+            try {
+                const res = await fetch('/api/agent8/capacity-analysis');
+                const data = await res.json();
+
+                let rows = '';
+                const providers = data.data || [];
+
+                providers.forEach(p => {
+                    const cohortBadge = `<span class="badge badge-${p.cohort.toLowerCase().replace(/ /g, '-')}">${p.cohort}</span>`;
+                    const status = p.appointments > 500 ? '✓ High Capacity' : p.appointments > 100 ? '⚠ Medium' : '✗ Low';
+
+                    rows += `
+                        <tr>
+                            <td><strong>${p.dietician}</strong></td>
+                            <td>${cohortBadge}</td>
+                            <td>${p.appointments}</td>
+                            <td>${status}</td>
+                        </tr>
+                    `;
+                });
+
+                document.getElementById('capacity-tbody').innerHTML = rows || '<tr><td colspan="4" style="text-align: center; padding: 40px;">No capacity data available</td></tr>';
+                window.capacityData = providers;
+            } catch (e) {
+                console.error('Error loading capacity:', e);
+                document.getElementById('capacity-tbody').innerHTML = '<tr><td colspan="4" style="text-align: center; color: red;">Error loading data</td></tr>';
+            }
+        }
+
+        // Filter outcomes table
+        function filterTable() {
+            const searchText = document.getElementById('search-input')?.value?.toLowerCase() || '';
+            const cohortFilter = document.getElementById('cohort-filter')?.value || '';
+
+            const rows = document.querySelectorAll('#outcomes-tbody tr');
+            rows.forEach(row => {
+                const name = row.cells[1]?.textContent?.toLowerCase() || '';
+                const cohort = row.cells[2]?.textContent || '';
+
+                const matchSearch = !searchText || name.includes(searchText);
+                const matchCohort = !cohortFilter || cohort.includes(cohortFilter);
+
+                row.style.display = (matchSearch && matchCohort) ? '' : 'none';
+            });
+        }
+
+        // Filter programs table
+        function filterProgramTable() {
+            const searchText = document.getElementById('program-search')?.value?.toLowerCase() || '';
+            const rows = document.querySelectorAll('#programs-tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent?.toLowerCase() || '';
+                row.style.display = text.includes(searchText) ? '' : 'none';
+            });
+        }
+
+        // Filter capacity table
+        function filterCapacityTable() {
+            const searchText = document.getElementById('capacity-search')?.value?.toLowerCase() || '';
+            const rows = document.querySelectorAll('#capacity-tbody tr');
+            rows.forEach(row => {
+                const text = row.textContent?.toLowerCase() || '';
+                row.style.display = text.includes(searchText) ? '' : 'none';
+            });
+        }
+
+        // Sort functions
+        let sortConfig = { column: null, direction: 'asc' };
+
+        function sortTable(columnIdx) {
+            const rows = Array.from(document.querySelectorAll('#outcomes-tbody tr')).filter(r => r.style.display !== 'none');
+            const headerCells = document.querySelectorAll('#outcomes-table th');
+
+            if (sortConfig.column === columnIdx) {
+                sortConfig.direction = sortConfig.direction === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortConfig.column = columnIdx;
+                sortConfig.direction = 'asc';
+            }
+
+            headerCells.forEach((h, idx) => {
+                h.classList.remove('sort-asc', 'sort-desc');
+                if (idx === columnIdx) {
+                    h.classList.add(sortConfig.direction === 'asc' ? 'sort-asc' : 'sort-desc');
+                }
+            });
+
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIdx]?.textContent || '';
+                let bVal = b.cells[columnIdx]?.textContent || '';
+
+                if (!isNaN(aVal) && !isNaN(bVal)) {
+                    aVal = parseFloat(aVal);
+                    bVal = parseFloat(bVal);
+                }
+
+                const comparison = aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+                return sortConfig.direction === 'asc' ? comparison : -comparison;
+            });
+
+            const tbody = document.getElementById('outcomes-tbody');
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        function sortProgramTable(columnIdx) {
+            const rows = Array.from(document.querySelectorAll('#programs-tbody tr'));
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIdx]?.textContent || '';
+                let bVal = b.cells[columnIdx]?.textContent || '';
+                if (!isNaN(aVal) && !isNaN(bVal)) {
+                    aVal = parseFloat(aVal);
+                    bVal = parseFloat(bVal);
+                }
+                return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+            });
+            const tbody = document.getElementById('programs-tbody');
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        function sortCapacityTable(columnIdx) {
+            const rows = Array.from(document.querySelectorAll('#capacity-tbody tr'));
+            rows.sort((a, b) => {
+                let aVal = a.cells[columnIdx]?.textContent || '';
+                let bVal = b.cells[columnIdx]?.textContent || '';
+                if (!isNaN(aVal) && !isNaN(bVal)) {
+                    aVal = parseFloat(aVal);
+                    bVal = parseFloat(bVal);
+                }
+                return aVal < bVal ? -1 : aVal > bVal ? 1 : 0;
+            });
+            const tbody = document.getElementById('capacity-tbody');
+            rows.forEach(row => tbody.appendChild(row));
+        }
+
+        // Export data
+        function exportData() {
+            const startDate = document.getElementById('start-date').value;
+            const endDate = document.getElementById('end-date').value;
+            const data = window.outcomesData || [];
+
+            let csv = 'Provider Name,Cohort,Improvement %,Status\n';
+            data.forEach(p => {
+                const improvement = p.improvement_pct !== null ? p.improvement_pct.toFixed(1) : 'N/A';
+                csv += `"${p.dietician}","${p.cohort}","${improvement}","${p.status}"\n`;
+            });
+
+            const blob = new Blob([csv], { type: 'text/csv' });
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `Provider_Outcomes_${startDate}_${endDate}.csv`;
+            a.click();
+            window.URL.revokeObjectURL(url);
+        }
+
+        // Refresh data
+        function refreshData() {
+            loadOutcomes();
+            loadPrograms();
+        }
+
+        // Reset filters
+        function resetFilters() {
+            document.getElementById('search-input').value = '';
+            document.getElementById('cohort-filter').value = '';
+            filterTable();
+        }
+    </script>
+</body>
+</html>
