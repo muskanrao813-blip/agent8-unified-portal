@@ -1131,19 +1131,24 @@ def proxy_bulk_upload():
 @app.route('/api/agent8/health-outcomes', methods=['GET'])
 def get_health_outcomes():
     """
-    Clinical outcomes data - READ FROM CACHE (not live Trino)
-    Returns pre-calculated metrics from SQLite professional_metrics table
+    Clinical outcomes data - stub returning empty data
+    NOTE: Full implementation requires data sync from Trino to PostgreSQL
     """
     from datetime import datetime, timedelta
 
     end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
     start_date = request.args.get('start_date', (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
 
-    logger.info(f"[HEALTH-OUTCOMES] Reading from cache: {start_date} to {end_date}")
+    logger.info(f"[HEALTH-OUTCOMES] Returning stub data for: {start_date} to {end_date}")
 
     try:
-        conn = sqlite3.connect(METRICS_DB_PATH)
-        cursor = conn.cursor()
+        # Return empty list for now - will be populated by data sync script
+        return jsonify({
+            'start_date': start_date,
+            'end_date': end_date,
+            'data': [],
+            'message': 'Data not yet synced. Run sync_data_from_trino.py to populate.'
+        }), 200
 
         # Query cached professional_metrics table (only columns that are populated)
         cursor.execute('''
@@ -1840,6 +1845,9 @@ def get_qa_scores_endpoint():
         logger.info(f"[QA-SCORES] Got scores for {len(result)} dieticians")
         return jsonify({'status': 'success', 'data': result, 'source': 'production_render'})
 
+    except requests.exceptions.Timeout:
+        logger.error(f"[QA-SCORES] QA API timeout")
+        return jsonify({'status': 'timeout', 'data': {}, 'message': 'QA API unavailable'}), 200
     except Exception as e:
         logger.error(f"[QA-SCORES] ERROR: {str(e)}")
         return jsonify({'status': 'error', 'message': str(e)}), 500
