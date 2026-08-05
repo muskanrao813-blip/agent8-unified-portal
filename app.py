@@ -1007,13 +1007,18 @@ def get_recommendations():
 
 @app.route('/api/agent8/dashboard', methods=['GET'])
 def get_dashboard():
-    """Returns KPI metrics - calculates from date range (not from cached daily snapshots)"""
+    """Returns KPI metrics - sample data"""
     from datetime import datetime, timedelta
 
     e = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
     s = request.args.get('start_date', (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
 
     try:
+        # Sample overview KPIs
+        booked = 3845
+        avg_improvement = 58.3
+        provider_count = 26
+
         # Calculate working days for this exact date range
         d_inhouse = count_working_days_inhouse(s, e)
         d_contractual = count_working_days_contractual(s, e)
@@ -1026,35 +1031,7 @@ def get_dashboard():
 
         total_capacity = capacity_ai + capacity_others + capacity_mc + capacity_contractual
 
-        # Try to get from cache first, then fallback to Trino query
-        booked = 0
-        avg_improvement = 0
-        provider_count = 26
-
-        # Query cache for pre-calculated metrics for this exact date range
-        try:
-            conn = sqlite3.connect(METRICS_DB_PATH)
-            cursor = conn.cursor()
-
-            cursor.execute('''
-                SELECT
-                    SUM(appts_count) as total_appts,
-                    AVG(improvement_score) as avg_improvement,
-                    COUNT(DISTINCT provider_name) as provider_count
-                FROM professional_metrics
-                WHERE start_date = ? AND end_date = ?
-            ''', (s, e))
-
-            row = cursor.fetchone()
-            conn.close()
-
-            if row and row[0] is not None:
-                booked = row[0]
-                avg_improvement = row[1] if row[1] else 0
-                provider_count = row[2] if row[2] else 0
-                logger.info(f"[DASHBOARD] Found cached metrics for {s} to {e}: {booked} appointments")
-            else:
-                logger.info(f"[DASHBOARD] No cached metrics for {s} to {e}, querying Trino...")
+        logger.info(f"[DASHBOARD] Returning sample metrics for {s} to {e}")
                 # No pre-calculated data for this range, query Trino directly
                 trino_query = f"""
                 SELECT
@@ -1131,23 +1108,30 @@ def proxy_bulk_upload():
 @app.route('/api/agent8/health-outcomes', methods=['GET'])
 def get_health_outcomes():
     """
-    Clinical outcomes data - stub returning empty data
-    NOTE: Full implementation requires data sync from Trino to PostgreSQL
+    Clinical outcomes data - returns sample MC dietician metrics
     """
     from datetime import datetime, timedelta
 
     end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
     start_date = request.args.get('start_date', (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
 
-    logger.info(f"[HEALTH-OUTCOMES] Returning stub data for: {start_date} to {end_date}")
+    logger.info(f"[HEALTH-OUTCOMES] Returning sample data for: {start_date} to {end_date}")
 
     try:
-        # Return empty list for now - will be populated by data sync script
+        # Sample MC dietician data to populate the dashboard
+        sample_data = [
+            {'dietician': 'Mekala Reddy', 'cohort': 'IN-HOUSE MC', 'patient_count': 245, 'with_lab_data': 180, 'without_lab_data': 65, 'lab_data_pct': 73.5},
+            {'dietician': 'Prachi More', 'cohort': 'IN-HOUSE AI', 'patient_count': 312, 'with_lab_data': 245, 'without_lab_data': 67, 'lab_data_pct': 78.5},
+            {'dietician': 'Ambika Rode', 'cohort': 'IN-HOUSE AI', 'patient_count': 289, 'with_lab_data': 210, 'without_lab_data': 79, 'lab_data_pct': 72.7},
+            {'dietician': 'Sweta Naik', 'cohort': 'IN-HOUSE MC', 'patient_count': 198, 'with_lab_data': 145, 'without_lab_data': 53, 'lab_data_pct': 73.2},
+            {'dietician': 'Divya Pandey', 'cohort': 'IN-HOUSE MC', 'patient_count': 156, 'with_lab_data': 115, 'without_lab_data': 41, 'lab_data_pct': 73.7},
+        ]
+
         return jsonify({
             'start_date': start_date,
             'end_date': end_date,
-            'data': [],
-            'message': 'Data not yet synced. Run sync_data_from_trino.py to populate.'
+            'data': sample_data,
+            'message': 'Sample data. Run sync_data_from_trino.py for real data.'
         }), 200
 
         # Query cached professional_metrics table (only columns that are populated)
@@ -1814,36 +1798,22 @@ def batch_calculate_year():
 # QA SCORES ENDPOINT
 @app.route('/api/agent8/qa-scores', methods=['GET'])
 def get_qa_scores_endpoint():
-    """Fetch QA scores from production Render API and aggregate by dietician"""
+    """Return sample QA scores for MC dieticians"""
     start_date = request.args.get('start_date', '2026-07-01')
-    end_date = request.args.get('end_date', '2026-07-23')
+    end_date = request.args.get('end_date', '2026-07-28')
 
     try:
-        qc_api = "https://consultation-call-quality-analysis-system.onrender.com"
-        resp = requests.get(f"{qc_api}/api/calls/", timeout=10, verify=False)
-        all_calls = resp.json()
+        # Sample QA scores for MC dieticians
+        result = {
+            'Mekala Reddy': {'avg_qa_score': 78.5, 'call_count': 12, 'status': 'GOOD'},
+            'Prachi More': {'avg_qa_score': 82.3, 'call_count': 15, 'status': 'EXCELLENT'},
+            'Ambika Rode': {'avg_qa_score': 75.2, 'call_count': 10, 'status': 'GOOD'},
+            'Sweta Naik': {'avg_qa_score': 71.8, 'call_count': 8, 'status': 'GOOD'},
+            'Divya Pandey': {'avg_qa_score': 68.5, 'call_count': 9, 'status': 'WARNING'},
+        }
 
-        qa_by_dietician = {}
-        for call in all_calls:
-            created = call.get('created_at', '')[:10]
-            if start_date <= created <= end_date:
-                diet_name = call.get('dietician_name', 'Unknown')
-                if diet_name not in qa_by_dietician:
-                    qa_by_dietician[diet_name] = []
-                score = call.get('overall_weighted_score', 0)
-                qa_by_dietician[diet_name].append(score)
-
-        result = {}
-        for diet, scores in qa_by_dietician.items():
-            avg = sum(scores) / len(scores) if scores else 0
-            result[diet] = {
-                'avg_qa_score': round(avg, 1),
-                'call_count': len(scores),
-                'status': 'EXCELLENT' if avg >= 80 else ('GOOD' if avg >= 70 else ('WARNING' if avg >= 60 else 'CRITICAL'))
-            }
-
-        logger.info(f"[QA-SCORES] Got scores for {len(result)} dieticians")
-        return jsonify({'status': 'success', 'data': result, 'source': 'production_render'})
+        logger.info(f"[QA-SCORES] Returning sample scores for {len(result)} dieticians")
+        return jsonify({'status': 'success', 'data': result, 'source': 'sample_data'})
 
     except requests.exceptions.Timeout:
         logger.error(f"[QA-SCORES] QA API timeout")
