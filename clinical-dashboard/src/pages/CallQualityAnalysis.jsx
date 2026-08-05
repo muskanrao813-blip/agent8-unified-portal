@@ -43,7 +43,9 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
     `;
 
     const iframe = document.createElement("iframe");
-    iframe.src = `http://localhost:3001/?view=${view || selectedView}`;
+    // Use production URL in production, localhost in development
+    const qaUrl = process.env.REACT_APP_QA_URL || 'https://consultation-call-quality-analysis-system.onrender.com';
+    iframe.src = `${qaUrl}/?view=${view || selectedView}`;
     iframe.style.cssText = `
       position: absolute;
       top: 0;
