@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 import psycopg2
 from psycopg2.extras import execute_values
 from trino.auth import BasicAuthentication
-from trino.exceptions import TrinoQuery
 import trino
 
 # Setup logging
