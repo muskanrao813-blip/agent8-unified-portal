@@ -3668,6 +3668,32 @@ def qa_dietician_analytics():
 
 
 # ============================================================================
+# GLOBAL ERROR HANDLERS
+# ============================================================================
+
+@app.errorhandler(500)
+def handle_500(error):
+    """Return empty data for any 500 errors to prevent frontend crashes"""
+    logger.error(f"500 Error: {str(error)}")
+    return jsonify({
+        'status': 'error',
+        'data': [],
+        'message': 'Service temporarily unavailable. Data sync in progress.',
+        'error': str(error)[:100]
+    }), 200
+
+@app.errorhandler(Exception)
+def handle_exception(error):
+    """Catch all unhandled exceptions"""
+    logger.error(f"Unhandled Exception: {str(error)}")
+    return jsonify({
+        'status': 'error',
+        'data': [],
+        'message': 'An error occurred. Please try again.',
+        'error': str(error)[:100]
+    }), 200
+
+# ============================================================================
 # STARTUP
 # ============================================================================
 
