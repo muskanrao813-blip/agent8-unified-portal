@@ -23,7 +23,7 @@ import {
   ListFilter
 } from 'lucide-react';
 import { Recording } from '../types';
-import { fetchCallDetail } from '../hooks/useClinicalAPI';
+import { fetchCallDetail } from '../hooks/useClinicalAPI.ts';
 
 interface TranscriptionsViewProps {
   recordings: Recording[];

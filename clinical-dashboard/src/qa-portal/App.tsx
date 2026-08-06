@@ -4,17 +4,17 @@
  */
 
 import React, { useState, useEffect } from 'react';
-import Sidebar from './components/Sidebar';
-import Header from './components/Header';
-import DashboardView from './components/DashboardView';
-import CallUploadView from './components/CallUploadView';
-import AIInsightsView from './components/AIInsightsView';
-import DieticianReportsView from './components/DieticianReportsView';
-import QAAlertsView from './components/QAAlertsView';
-import TranscriptionsView from './components/TranscriptionsView';
+import Sidebar from './components/Sidebar.tsx';
+import Header from './components/Header.tsx';
+import DashboardView from './components/DashboardView.tsx';
+import CallUploadView from './components/CallUploadView.tsx';
+import AIInsightsView from './components/AIInsightsView.tsx';
+import DieticianReportsView from './components/DieticianReportsView.tsx';
+import QAAlertsView from './components/QAAlertsView.tsx';
+import TranscriptionsView from './components/TranscriptionsView.tsx';
 
 import { Recording, SystemSettings, QAAlert } from './types';
-import { useClinicalAPI, fetchDieticianReports } from './hooks/useClinicalAPI';
+import { useClinicalAPI, fetchDieticianReports } from './hooks/useClinicalAPI.ts';
 
 // Default settings (minimal, no mock data)
 const DEFAULT_SETTINGS: SystemSettings = {
