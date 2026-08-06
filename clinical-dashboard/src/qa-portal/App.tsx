@@ -45,6 +45,36 @@ export default function App() {
   const viewParam = urlParams.get('view') || 'dashboard';
 
   const [currentView, setCurrentView] = useState<string>(viewParam);
+
+  // Listen for URL changes (iframe src updates)
+  useEffect(() => {
+    const handleURLChange = () => {
+      const newParams = new URLSearchParams(window.location.search);
+      const newView = newParams.get('view') || 'dashboard';
+      console.log('[QA Portal] URL changed, updating view to:', newView);
+      setCurrentView(newView);
+    };
+
+    // Listen for popstate events (browser back/forward)
+    window.addEventListener('popstate', handleURLChange);
+    // Also check URL periodically for iframe src changes
+    const interval = setInterval(() => {
+      const newParams = new URLSearchParams(window.location.search);
+      const newView = newParams.get('view') || 'dashboard';
+      setCurrentView(prev => {
+        if (prev !== newView) {
+          console.log('[QA Portal] URL polling detected view change to:', newView);
+          return newView;
+        }
+        return prev;
+      });
+    }, 500);
+
+    return () => {
+      window.removeEventListener('popstate', handleURLChange);
+      clearInterval(interval);
+    };
+  }, []);
   const [searchQuery, setSearchQuery] = useState<string>('');
 
   // Fetch ONLY real data from BE clinical API - NO FALLBACK
