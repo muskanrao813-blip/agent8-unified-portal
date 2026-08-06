@@ -8,6 +8,29 @@ import {
   QAAlertsView
 } from '../qa-portal/index.tsx';
 
+// Error boundary to catch component errors
+class ErrorBoundary extends React.Component {
+  constructor(props) {
+    super(props);
+    this.state = { hasError: false };
+  }
+
+  static getDerivedStateFromError(error) {
+    return { hasError: true };
+  }
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div style={{ padding: '20px', color: '#666' }}>
+          <p>Component is loading...</p>
+        </div>
+      );
+    }
+    return this.props.children;
+  }
+}
+
 // Full state management for all QA Portal views with working flows
 export default function CallQualityAnalysis({ view = "dashboard" }) {
   // Shared state across all views
@@ -18,22 +41,6 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
   const [selectedCallId, setSelectedCallId] = useState(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [qaAlerts, setQaAlerts] = useState([]);
-
-  // Fetch recordings from backend when component mounts
-  useEffect(() => {
-    const fetchData = async () => {
-      try {
-        const response = await fetch(`${process.env.REACT_APP_BACKEND_URL || 'https://consultation-call-quality-analysis-system.onrender.com'}/api/recordings`);
-        if (response.ok) {
-          const data = await response.json();
-          setRecordings(data);
-        }
-      } catch (error) {
-        console.log('Failed to fetch recordings');
-      }
-    };
-    fetchData();
-  }, []);
 
   // Handle file upload
   const handleUploadFile = useCallback((fileName) => {
@@ -58,10 +65,9 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
     setActiveQueue((prev) => [newQueueItem, ...prev]);
   }, []);
 
-  // Handle call selection (navigate to insights)
+  // Handle call selection
   const handleSelectCall = useCallback((id) => {
     setSelectedCallId(id);
-    // View will be changed by parent when this is called
   }, []);
 
   // Handle training assignment
@@ -83,53 +89,55 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
   }, []);
 
   return (
-    <div style={{ width: '100%', height: '100%', overflow: 'hidden' }}>
-      {view === 'dashboard' && (
-        <DashboardView
-          recordings={recordings}
-          onSelectCall={handleSelectCall}
-          dieticians={dieticians}
-          searchQuery={searchQuery}
-        />
-      )}
-      {view === 'upload' && (
-        <CallUploadView
-          activeQueue={activeQueue}
-          completedRecordings={recordings}
-          onSelectCall={handleSelectCall}
-          onUploadFile={handleUploadFile}
-        />
-      )}
-      {view === 'transcriptions' && (
-        <TranscriptionsView
-          recordings={recordings}
-          onSelectCall={handleSelectCall}
-          searchQuery={searchQuery}
-        />
-      )}
-      {view === 'insights' && (
-        <AIInsightsView
-          completedRecordings={recordings}
-          selectedCallId={selectedCallId}
-          onSelectCallId={setSelectedCallId}
-        />
-      )}
-      {view === 'reports' && (
-        <DieticianReportsView
-          dieticians={dieticians}
-          trainingGaps={trainingGaps}
-          onAssignTraining={handleAssignTraining}
-          searchQuery={searchQuery}
-        />
-      )}
-      {view === 'alerts' && (
-        <QAAlertsView
-          alerts={qaAlerts}
-          onSelectCall={handleSelectCall}
-          onToggleAlertStatus={handleToggleAlertStatus}
-          searchQuery={searchQuery}
-        />
-      )}
-    </div>
+    <ErrorBoundary>
+      <div style={{ width: '100%', height: '100%', overflow: 'hidden', backgroundColor: '#f5f5f5' }}>
+        {view === 'dashboard' && (
+          <DashboardView
+            recordings={recordings}
+            onSelectCall={handleSelectCall}
+            dieticians={dieticians}
+            searchQuery={searchQuery}
+          />
+        )}
+        {view === 'upload' && (
+          <CallUploadView
+            activeQueue={activeQueue}
+            completedRecordings={recordings}
+            onSelectCall={handleSelectCall}
+            onUploadFile={handleUploadFile}
+          />
+        )}
+        {view === 'transcriptions' && (
+          <TranscriptionsView
+            recordings={recordings}
+            onSelectCall={handleSelectCall}
+            searchQuery={searchQuery}
+          />
+        )}
+        {view === 'insights' && (
+          <AIInsightsView
+            completedRecordings={recordings}
+            selectedCallId={selectedCallId}
+            onSelectCallId={setSelectedCallId}
+          />
+        )}
+        {view === 'reports' && (
+          <DieticianReportsView
+            dieticians={dieticians}
+            trainingGaps={trainingGaps}
+            onAssignTraining={handleAssignTraining}
+            searchQuery={searchQuery}
+          />
+        )}
+        {view === 'alerts' && (
+          <QAAlertsView
+            alerts={qaAlerts}
+            onSelectCall={handleSelectCall}
+            onToggleAlertStatus={handleToggleAlertStatus}
+            searchQuery={searchQuery}
+          />
+        )}
+      </div>
+    </ErrorBoundary>
   );
 }
