@@ -1,16 +1,12 @@
-import React, { useState, useEffect, Suspense, lazy } from 'react';
-
-// Use React.lazy to handle the Netlify components
-const Sidebar = lazy(() => import('../qa-portal/components/Sidebar'));
-const Header = lazy(() => import('../qa-portal/components/Header'));
-const DashboardView = lazy(() => import('../qa-portal/components/DashboardView'));
-const CallUploadView = lazy(() => import('../qa-portal/components/CallUploadView'));
-const TranscriptionsView = lazy(() => import('../qa-portal/components/TranscriptionsView'));
-const AIInsightsView = lazy(() => import('../qa-portal/components/AIInsightsView'));
-const DieticianReportsView = lazy(() => import('../qa-portal/components/DieticianReportsView'));
-const QAAlertsView = lazy(() => import('../qa-portal/components/QAAlertsView'));
-
-const Loading = () => <div className="p-8">Loading...</div>;
+import React, { useState, useEffect } from 'react';
+import Sidebar from '../qa-portal/components/Sidebar.tsx';
+import Header from '../qa-portal/components/Header.tsx';
+import DashboardView from '../qa-portal/components/DashboardView.tsx';
+import CallUploadView from '../qa-portal/components/CallUploadView.tsx';
+import TranscriptionsView from '../qa-portal/components/TranscriptionsView.tsx';
+import AIInsightsView from '../qa-portal/components/AIInsightsView.tsx';
+import DieticianReportsView from '../qa-portal/components/DieticianReportsView.tsx';
+import QAAlertsView from '../qa-portal/components/QAAlertsView.tsx';
 
 export default function CallQualityAnalysis({ view = "dashboard" }) {
   const [currentView, setCurrentView] = useState(view);
@@ -60,43 +56,35 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
   };
 
   return (
-    <Suspense fallback={<Loading />}>
-      <div className="flex h-screen w-screen overflow-hidden font-sans bg-background text-on-background">
-        <Suspense fallback={<div className="w-64 bg-gray-100" />}>
-          <Sidebar
-            currentView={currentView}
-            onViewChange={(newView) => {
-              setCurrentView(newView);
-              setSearchQuery('');
-            }}
-            onTriggerUpload={() => handleUploadFile('my_uploaded_clinical_audio.wav')}
-            activeProcessingCount={activeQueue.length}
-          />
-        </Suspense>
+    <div className="flex h-screen w-screen overflow-hidden font-sans bg-background text-on-background">
+      <Sidebar
+        currentView={currentView}
+        onViewChange={(newView) => {
+          setCurrentView(newView);
+          setSearchQuery('');
+        }}
+        onTriggerUpload={() => handleUploadFile('my_uploaded_clinical_audio.wav')}
+        activeProcessingCount={activeQueue.length}
+      />
 
-        <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
-          <Suspense fallback={<div className="h-16 bg-white border-b" />}>
-            <Header
-              currentView={currentView}
-              settings={settings}
-              searchQuery={searchQuery}
-              onSearchQueryChange={setSearchQuery}
-              criticalAlerts={[]}
-            />
-          </Suspense>
+      <div className="flex-1 flex flex-col min-w-0 h-full overflow-hidden">
+        <Header
+          currentView={currentView}
+          settings={settings}
+          searchQuery={searchQuery}
+          onSearchQueryChange={setSearchQuery}
+          criticalAlerts={[]}
+        />
 
-          <main className="flex-1 overflow-hidden relative">
-            <Suspense fallback={<Loading />}>
-              {currentView === 'dashboard' && <DashboardView recordings={recordings} onSelectCall={handleSelectCall} dieticians={dieticians} searchQuery={searchQuery} />}
-              {currentView === 'upload' && <CallUploadView activeQueue={activeQueue} completedRecordings={recordings} onSelectCall={handleSelectCall} onUploadFile={handleUploadFile} />}
-              {currentView === 'transcriptions' && <TranscriptionsView recordings={recordings} onSelectCall={handleSelectCall} searchQuery={searchQuery} />}
-              {currentView === 'insights' && <AIInsightsView completedRecordings={recordings} selectedCallId={selectedCallId} onSelectCallId={setSelectedCallId} />}
-              {currentView === 'reports' && <DieticianReportsView dieticians={dieticians} trainingGaps={trainingGaps} onAssignTraining={() => {}} searchQuery={searchQuery} />}
-              {currentView === 'alerts' && <QAAlertsView alerts={[]} onSelectCall={handleSelectCall} onToggleAlertStatus={() => {}} searchQuery={searchQuery} />}
-            </Suspense>
-          </main>
-        </div>
+        <main className="flex-1 overflow-hidden relative">
+          {currentView === 'dashboard' && <DashboardView recordings={recordings} onSelectCall={handleSelectCall} dieticians={dieticians} searchQuery={searchQuery} />}
+          {currentView === 'upload' && <CallUploadView activeQueue={activeQueue} completedRecordings={recordings} onSelectCall={handleSelectCall} onUploadFile={handleUploadFile} />}
+          {currentView === 'transcriptions' && <TranscriptionsView recordings={recordings} onSelectCall={handleSelectCall} searchQuery={searchQuery} />}
+          {currentView === 'insights' && <AIInsightsView completedRecordings={recordings} selectedCallId={selectedCallId} onSelectCallId={setSelectedCallId} />}
+          {currentView === 'reports' && <DieticianReportsView dieticians={dieticians} trainingGaps={trainingGaps} onAssignTraining={() => {}} searchQuery={searchQuery} />}
+          {currentView === 'alerts' && <QAAlertsView alerts={[]} onSelectCall={handleSelectCall} onToggleAlertStatus={() => {}} searchQuery={searchQuery} />}
+        </main>
       </div>
-    </Suspense>
+    </div>
   );
 }
