@@ -19,27 +19,10 @@ def startup_event():
     Base.metadata.create_all(bind=engine)
     logger.info("Database tables initialized")
 
-# Add CORS middleware - allow development & production origins
+# Add CORS middleware - allow all origins for development
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        # Development (localhost)
-        "http://localhost:3000",
-        "http://localhost:3001",
-        "http://localhost:3002",
-        "http://localhost:5173",
-        "http://localhost:8080",
-        "http://127.0.0.1:3000",
-        "http://127.0.0.1:3001",
-        "http://127.0.0.1:3002",
-        "http://127.0.0.1:5173",
-        "http://127.0.0.1:8080",
-        # Production (Netlify)
-        "https://consultation-call-quality-analysis.netlify.app",
-        "https://rainbow-biscotti-eb81b0.netlify.app",
-        # Agent 8 Unified Portal (Vercel)
-        "https://agent8-unified-portal.vercel.app",
-    ],
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
