@@ -20,7 +20,7 @@ import {
 import { Recording } from '../types';
 import { fetchCallDetail } from '../hooks/useClinicalAPI.ts';
 
-const API_BASE = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const API_BASE = process.env.REACT_APP_QA_API_URL || 'http://localhost:8000';
 
 interface AIInsightsViewProps {
   completedRecordings: Recording[];
