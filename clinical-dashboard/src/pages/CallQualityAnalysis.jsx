@@ -8,7 +8,7 @@ import {
   AIInsightsView,
   DieticianReportsView,
   QAAlertsView
-} from '../qa-portal';
+} from '../qa-portal/index.tsx';
 
 export default function CallQualityAnalysis({ view = "dashboard" }) {
   const [currentView, setCurrentView] = useState(view);
