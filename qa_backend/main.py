@@ -37,6 +37,8 @@ app.add_middleware(
         # Production (Netlify)
         "https://consultation-call-quality-analysis.netlify.app",
         "https://rainbow-biscotti-eb81b0.netlify.app",
+        # Agent 8 Unified Portal (Vercel)
+        "https://agent8-unified-portal.vercel.app",
     ],
     allow_credentials=True,
     allow_methods=["*"],
