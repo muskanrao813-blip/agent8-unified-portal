@@ -1032,14 +1032,6 @@ def get_dashboard():
         total_capacity = capacity_ai + capacity_others + capacity_mc + capacity_contractual
 
         logger.info(f"[DASHBOARD] Returning sample metrics for {s} to {e}")
-                """
-                trino_result = execute_trino_query(trino_query)
-                if trino_result and len(trino_result) > 0:
-                    booked = trino_result[0].get('total_appts', 0) or 0
-                    provider_count = trino_result[0].get('provider_count', 0) or 26
-                    logger.info(f"[DASHBOARD] Trino query for {s} to {e}: {booked} appointments")
-        except Exception as e:
-            logger.warning(f"[DASHBOARD] Cache query error: {str(e)}, using Trino fallback")
 
         util = round((booked / max(total_capacity, 1)) * 100, 1)
         available_slots = max(total_capacity - booked, 0)
