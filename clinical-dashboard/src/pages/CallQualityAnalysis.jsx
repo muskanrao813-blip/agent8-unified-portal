@@ -11,8 +11,14 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
     console.log('[CallQualityAnalysis] useEffect triggered with view:', view);
     if (!containerRef.current) return;
 
+    // Clear previous iframe completely
+    if (iframeRef.current) {
+      iframeRef.current.remove();
+      iframeRef.current = null;
+    }
     containerRef.current.innerHTML = "";
 
+    // Create new wrapper
     const wrapper = document.createElement("div");
     wrapper.style.cssText = `
       position: relative;
@@ -21,17 +27,16 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
       overflow: hidden;
     `;
 
+    // Create fresh iframe
     const iframe = document.createElement("iframe");
-    // QA Portal frontend is on Netlify
     let qaUrl = process.env.REACT_APP_QA_URL || process.env.REACT_APP_QA_PORTAL_URL || 'https://consultation-call-quality-analysis.netlify.app';
-    // Remove trailing slash if present
     qaUrl = qaUrl.replace(/\/$/, '');
     const viewParam = view || 'dashboard';
     const timestamp = Date.now();
     const iframeUrl = `${qaUrl}/?view=${viewParam}&t=${timestamp}`;
 
     console.log('[CallQualityAnalysis] Loading iframe with view=' + viewParam + ' URL:', iframeUrl);
-    iframe.src = iframeUrl;
+
     iframe.style.cssText = `
       position: absolute;
       top: 0;
@@ -43,14 +48,15 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
     `;
     iframe.allow = "microphone; camera; clipboard-read; clipboard-write";
     iframe.title = "QA Portal";
+    iframe.src = iframeUrl;
 
     iframeRef.current = iframe;
     wrapper.appendChild(iframe);
     containerRef.current.appendChild(wrapper);
 
     return () => {
-      if (containerRef.current) {
-        containerRef.current.innerHTML = "";
+      if (iframeRef.current) {
+        iframeRef.current.remove();
       }
     };
   }, [view]);
