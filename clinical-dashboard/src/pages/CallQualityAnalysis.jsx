@@ -4,8 +4,11 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
   const containerRef = useRef(null);
   const iframeRef = useRef(null);
 
+  console.log('[CallQualityAnalysis] Component rendered with view:', view);
+
   // Load QA Portal iframe with correct view
   useEffect(() => {
+    console.log('[CallQualityAnalysis] useEffect triggered with view:', view);
     if (!containerRef.current) return;
 
     containerRef.current.innerHTML = "";
@@ -25,7 +28,7 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
     const timestamp = Date.now();
     const iframeUrl = `${qaUrl}/?view=${viewParam}&t=${timestamp}`;
 
-    console.log('[CallQualityAnalysis] Loading iframe URL:', iframeUrl);
+    console.log('[CallQualityAnalysis] Loading iframe with view=' + viewParam + ' URL:', iframeUrl);
     iframe.src = iframeUrl;
     iframe.style.cssText = `
       position: absolute;
