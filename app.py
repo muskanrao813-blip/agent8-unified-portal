@@ -14,6 +14,7 @@ from dotenv import load_dotenv
 from trino.dbapi import connect
 from trino.auth import BasicAuthentication
 import sqlite3
+import psycopg
 from db_layer import store_professional_metric, query_professional_metrics, clear_metrics_for_date_range, init_postgres_schema, USE_POSTGRES
 
 # Load .env from project root directory
@@ -1090,30 +1091,42 @@ def proxy_bulk_upload():
 @app.route('/api/agent8/health-outcomes', methods=['GET'])
 def get_health_outcomes():
     """
-    Clinical outcomes data - returns sample MC dietician metrics
+    Clinical outcomes data - reads from PostgreSQL (synced from Trino)
     """
     from datetime import datetime, timedelta
 
     end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
     start_date = request.args.get('start_date', (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
 
-    logger.info(f"[HEALTH-OUTCOMES] Returning sample data for: {start_date} to {end_date}")
+    logger.info(f"[HEALTH-OUTCOMES] Fetching data from PostgreSQL: {start_date} to {end_date}")
 
     try:
-        # Sample MC dietician data to populate the dashboard
-        sample_data = [
-            {'dietician': 'Mekala Reddy', 'cohort': 'IN-HOUSE MC', 'patient_count': 245, 'with_lab_data': 180, 'without_lab_data': 65, 'lab_data_pct': 73.5},
-            {'dietician': 'Prachi More', 'cohort': 'IN-HOUSE AI', 'patient_count': 312, 'with_lab_data': 245, 'without_lab_data': 67, 'lab_data_pct': 78.5},
-            {'dietician': 'Ambika Rode', 'cohort': 'IN-HOUSE AI', 'patient_count': 289, 'with_lab_data': 210, 'without_lab_data': 79, 'lab_data_pct': 72.7},
-            {'dietician': 'Sweta Naik', 'cohort': 'IN-HOUSE MC', 'patient_count': 198, 'with_lab_data': 145, 'without_lab_data': 53, 'lab_data_pct': 73.2},
-            {'dietician': 'Divya Pandey', 'cohort': 'IN-HOUSE MC', 'patient_count': 156, 'with_lab_data': 115, 'without_lab_data': 41, 'lab_data_pct': 73.7},
-        ]
+        conn = psycopg.connect(os.getenv('DATABASE_URL'), connect_timeout=10)
+        cursor = conn.cursor()
+
+        cursor.execute('''
+            SELECT dietician_name, 'IN-HOUSE MC' as cohort,
+                   COALESCE(total_appointments, 0) as patient_count,
+                   COALESCE(completed_appointments, 0) as with_lab_data,
+                   COALESCE(total_appointments - completed_appointments, 0) as without_lab_data,
+                   CASE WHEN total_appointments > 0
+                        THEN ROUND(100.0 * completed_appointments / total_appointments, 1)
+                        ELSE 0 END as lab_data_pct
+            FROM provider_metrics
+            ORDER BY total_appointments DESC LIMIT 25
+        ''')
+
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        data = [dict(zip(['dietician', 'cohort', 'patient_count', 'with_lab_data', 'without_lab_data', 'lab_data_pct'], row)) for row in rows]
 
         return jsonify({
             'start_date': start_date,
             'end_date': end_date,
-            'data': sample_data,
-            'message': 'Sample data. Run sync_data_from_trino.py for real data.'
+            'data': data if data else [],
+            'message': 'Real data from PostgreSQL' if data else 'No data synced yet. Run sync_data_from_trino.py'
         }), 200
 
         # Query cached professional_metrics table (only columns that are populated)
