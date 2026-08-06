@@ -23,7 +23,9 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
 
     const iframe = document.createElement("iframe");
     // QA Portal frontend is on Netlify
-    const qaUrl = process.env.REACT_APP_QA_URL || process.env.REACT_APP_QA_PORTAL_URL || 'https://consultation-call-quality-analysis.netlify.app';
+    let qaUrl = process.env.REACT_APP_QA_URL || process.env.REACT_APP_QA_PORTAL_URL || 'https://consultation-call-quality-analysis.netlify.app';
+    // Remove trailing slash if present
+    qaUrl = qaUrl.replace(/\/$/, '');
     const viewParam = view || 'dashboard';
     const timestamp = Date.now();
     const iframeUrl = `${qaUrl}/?view=${viewParam}&t=${timestamp}`;
