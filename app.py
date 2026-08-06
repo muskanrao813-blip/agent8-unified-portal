@@ -1032,16 +1032,6 @@ def get_dashboard():
         total_capacity = capacity_ai + capacity_others + capacity_mc + capacity_contractual
 
         logger.info(f"[DASHBOARD] Returning sample metrics for {s} to {e}")
-                # No pre-calculated data for this range, query Trino directly
-                trino_query = f"""
-                SELECT
-                    COUNT(DISTINCT appointmentid) as total_appts,
-                    COUNT(DISTINCT phrid) as provider_count
-                FROM deltalake.dl_standard_pbireporting.f_appointmentflattable
-                WHERE doctorname IN ({','.join([f"'{d}'" for d in MC_DIETICIANS])})
-                  AND appointmentstatus IN ('COM', 'BOOKED')
-                  AND DATE(appointmentdate) >= DATE('{s}')
-                  AND DATE(appointmentdate) <= DATE('{e}')
                 """
                 trino_result = execute_trino_query(trino_query)
                 if trino_result and len(trino_result) > 0:
