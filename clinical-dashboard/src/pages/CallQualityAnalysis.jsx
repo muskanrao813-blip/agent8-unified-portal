@@ -167,9 +167,14 @@ export default function CallQualityAnalysis({ view = "dashboard" }) {
         style={{
           flex: 1,
           position: "relative",
-          overflow: "hidden"
+          overflow: "hidden",
+          background: "#f5f5f5",
+          minHeight: "500px"
         }}
       />
+      <div style={{fontSize: "12px", color: "#999", padding: "10px", textAlign: "center"}}>
+        Loading QA Portal... If blank, check browser console (F12)
+      </div>
     </div>
   );
 }
