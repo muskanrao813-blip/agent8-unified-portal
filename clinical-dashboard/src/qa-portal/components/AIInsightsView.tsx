@@ -221,7 +221,7 @@ export default function AIInsightsView({
                   })}
                 </div>
                 {/* Seek bar */}
-                <input type="range" min="0" max={effectiveDuration || 1} value={audioTime}
+                <input id="audio-seek-bar" type="range" min="0" max={effectiveDuration || 1} value={audioTime}
                   onChange={e => {
                     const t = parseInt(e.target.value);
                     setAudioTime(t);

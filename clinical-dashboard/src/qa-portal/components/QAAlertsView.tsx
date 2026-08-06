@@ -75,6 +75,7 @@ export default function QAAlertsView({
             <Filter className="w-3.5 h-3.5 text-[#1A1A1A]/60" />
             <span className="text-[#1A1A1A]/60">Severity:</span>
             <select
+              id="severity-filter"
               value={severityFilter}
               onChange={(e) => setSeverityFilter(e.target.value)}
               className="bg-transparent focus:outline-none text-[#1A1A1A] cursor-pointer font-bold uppercase tracking-wider"
@@ -91,6 +92,7 @@ export default function QAAlertsView({
             <CheckSquare className="w-3.5 h-3.5 text-[#1A1A1A]/60" />
             <span className="text-[#1A1A1A]/60">Status:</span>
             <select
+              id="status-filter"
               value={statusFilter}
               onChange={(e) => setStatusFilter(e.target.value)}
               className="bg-transparent focus:outline-none text-[#1A1A1A] cursor-pointer font-bold uppercase tracking-wider"

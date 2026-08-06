@@ -133,8 +133,9 @@ export default function SettingsView({
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
               <div className="space-y-1.5 flex flex-col">
-                <label className="text-[10px] font-sans font-bold text-[#1A1A1A]/50 uppercase tracking-wider">Full Name</label>
+                <label htmlFor="profile-name" className="text-[10px] font-sans font-bold text-[#1A1A1A]/50 uppercase tracking-wider">Full Name</label>
                 <input
+                  id="profile-name"
                   type="text"
                   value={profileName}
                   onChange={(e) => setProfileName(e.target.value)}
@@ -144,8 +145,9 @@ export default function SettingsView({
               </div>
 
               <div className="space-y-1.5 flex flex-col">
-                <label className="text-[10px] font-sans font-bold text-[#1A1A1A]/50 uppercase tracking-wider">Clinical Role</label>
+                <label htmlFor="profile-role" className="text-[10px] font-sans font-bold text-[#1A1A1A]/50 uppercase tracking-wider">Clinical Role</label>
                 <input
+                  id="profile-role"
                   type="text"
                   value={profileRole}
                   onChange={(e) => setProfileRole(e.target.value)}
@@ -155,8 +157,9 @@ export default function SettingsView({
               </div>
 
               <div className="space-y-1.5 md:col-span-2 flex flex-col">
-                <label className="text-[10px] font-sans font-bold text-[#1A1A1A]/50 uppercase tracking-wider">Primary Email</label>
+                <label htmlFor="profile-email" className="text-[10px] font-sans font-bold text-[#1A1A1A]/50 uppercase tracking-wider">Primary Email</label>
                 <input
+                  id="profile-email"
                   type="email"
                   value={profileEmail}
                   onChange={(e) => setProfileEmail(e.target.value)}
@@ -187,6 +190,7 @@ export default function SettingsView({
                   <span className="text-[#8B7E66] font-mono">{nutritionalWeight}%</span>
                 </div>
                 <input
+                  id="nutritional-weight-slider"
                   type="range"
                   min="0"
                   max="100"
@@ -203,6 +207,7 @@ export default function SettingsView({
                   <span className="text-[#8B7E66] font-mono">{empathyWeight}%</span>
                 </div>
                 <input
+                  id="empathy-weight-slider"
                   type="range"
                   min="0"
                   max="100"
@@ -219,6 +224,7 @@ export default function SettingsView({
                   <span className="text-[#8B7E66] font-mono">{sopWeight}%</span>
                 </div>
                 <input
+                  id="sop-weight-slider"
                   type="range"
                   min="0"
                   max="100"
@@ -235,6 +241,7 @@ export default function SettingsView({
                   <span className="text-[#8B7E66] font-mono">{clarityWeight}%</span>
                 </div>
                 <input
+                  id="clarity-weight-slider"
                   type="range"
                   min="0"
                   max="100"
@@ -257,6 +264,7 @@ export default function SettingsView({
               <div className="space-y-1.5 flex flex-col">
                 <label className="text-[10px] font-sans font-bold text-[#1A1A1A]/50 uppercase tracking-wider">Data Retention Policy</label>
                 <select
+                  id="retention-policy"
                   value={retentionPolicy}
                   onChange={(e) => setRetentionPolicy(e.target.value)}
                   className="w-full bg-[#FAF8F6] border border-[#1A1A1A]/15 rounded-none px-4 py-2.5 text-sm text-[#1A1A1A] font-sans font-medium focus:outline-none focus:border-[#8B7E66] cursor-pointer"
@@ -271,6 +279,7 @@ export default function SettingsView({
               <div className="space-y-1.5 flex flex-col">
                 <label className="text-[10px] font-sans font-bold text-[#1A1A1A]/50 uppercase tracking-wider">QA Trigger Threshold (%)</label>
                 <input
+                  id="qa-trigger-threshold"
                   type="number"
                   min="50"
                   max="100"
@@ -283,6 +292,7 @@ export default function SettingsView({
               <div className="space-y-1.5 flex flex-col">
                 <label className="text-[10px] font-sans font-bold text-[#1A1A1A]/50 uppercase tracking-wider">Default Timezone</label>
                 <select
+                  id="default-timezone"
                   value={timezone}
                   onChange={(e) => setTimezone(e.target.value)}
                   className="w-full bg-[#FAF8F6] border border-[#1A1A1A]/15 rounded-none px-4 py-2.5 text-sm text-[#1A1A1A] font-sans font-medium focus:outline-none focus:border-[#8B7E66] cursor-pointer"

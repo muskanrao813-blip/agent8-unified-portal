@@ -429,6 +429,7 @@ export default function TranscriptionsView({
               {/* Seek Bar */}
               <div className="flex-1 relative flex items-center">
                 <input
+                  id="transcription-seek-bar"
                   type="range"
                   min="0"
                   max={effectiveDuration || 1}

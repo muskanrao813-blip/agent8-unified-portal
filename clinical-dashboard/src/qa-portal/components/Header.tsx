@@ -68,6 +68,7 @@ export default function Header({
         <div className="relative w-full max-w-sm">
           <Search className="w-3.5 h-3.5 absolute left-1 top-1/2 -translate-y-1/2 text-[#1A1A1A]/50" />
           <input
+            id="qa-search-input"
             type="text"
             value={searchQuery}
             onChange={(e) => onSearchQueryChange(e.target.value)}

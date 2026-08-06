@@ -250,6 +250,7 @@ export default function CallUploadView({
               }`}
             >
               <input
+                id="audio-file-upload"
                 type="file"
                 accept=".mp3,.wav,.flac"
                 onChange={handleFileChange}

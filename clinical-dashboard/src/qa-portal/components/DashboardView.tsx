@@ -187,13 +187,13 @@ ${calls.map(call => {
               {showDatePicker && (
                 <div className="absolute right-0 top-full mt-1 bg-white border border-[#1A1A1A]/15 shadow-xl z-50 p-4 space-y-3 w-64">
                   <div>
-                    <label className="text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A]/60 block mb-1">From</label>
-                    <input type="date" value={dateFrom} max={dateTo} onChange={e => setDateFrom(e.target.value)}
+                    <label htmlFor="date-from" className="text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A]/60 block mb-1">From</label>
+                    <input id="date-from" type="date" value={dateFrom} max={dateTo} onChange={e => setDateFrom(e.target.value)}
                       className="w-full border border-[#1A1A1A]/15 px-3 py-1.5 text-xs focus:outline-none focus:border-[#8B7E66]" />
                   </div>
                   <div>
-                    <label className="text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A]/60 block mb-1">To</label>
-                    <input type="date" value={dateTo} min={dateFrom} max={today} onChange={e => setDateTo(e.target.value)}
+                    <label htmlFor="date-to" className="text-[10px] font-sans font-bold uppercase tracking-wider text-[#1A1A1A]/60 block mb-1">To</label>
+                    <input id="date-to" type="date" value={dateTo} min={dateFrom} max={today} onChange={e => setDateTo(e.target.value)}
                       className="w-full border border-[#1A1A1A]/15 px-3 py-1.5 text-xs focus:outline-none focus:border-[#8B7E66]" />
                   </div>
                   <div className="flex gap-2">
