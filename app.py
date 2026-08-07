@@ -14,7 +14,6 @@ from dotenv import load_dotenv
 from trino.dbapi import connect
 from trino.auth import BasicAuthentication
 import sqlite3
-import psycopg
 from db_layer import store_professional_metric, query_professional_metrics, clear_metrics_for_date_range, init_postgres_schema, USE_POSTGRES
 
 # Load .env from project root directory
