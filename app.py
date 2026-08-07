@@ -1033,18 +1033,31 @@ def get_dashboard():
         conn = psycopg2.connect(db_url)
         cursor = conn.cursor()
 
-        # Get SINGLE best-matching period per provider
-        # Use subquery with MAX(end_date), MAX(start_date) to avoid duplicates
+        # Calculate user's requested span
+        from datetime import datetime as dt
+        user_span = (dt.strptime(e, '%Y-%m-%d') - dt.strptime(s, '%Y-%m-%d')).days
+
+        # Get ALL overlapping periods for each provider
         cursor.execute('''
-            SELECT appts_count, improvement_score
-            FROM professional_metrics pm
-            WHERE (provider_name, end_date, start_date) IN (
-                SELECT provider_name, MAX(end_date), MAX(start_date)
-                FROM professional_metrics
-                WHERE start_date <= %s AND end_date >= %s
-                GROUP BY provider_name
-            )
+            SELECT provider_name, end_date, start_date, appts_count, improvement_score
+            FROM professional_metrics
+            WHERE start_date <= %s AND end_date >= %s
+            ORDER BY provider_name
         ''', (e, s))
+
+        all_rows = cursor.fetchall()
+
+        # For each provider, select the period with span CLOSEST to user's span
+        selected_rows = {}
+        for row in all_rows:
+            provider = row[0]
+            period_span = (row[1] - row[2]).days
+            span_diff = abs(period_span - user_span)
+
+            if provider not in selected_rows or span_diff < selected_rows[provider][2]:
+                selected_rows[provider] = (row[3], row[4], span_diff)  # (appts, improvement, span_diff)
+
+        rows = [(v[0], v[1]) for v in selected_rows.values()]
 
         rows = cursor.fetchall()
         cursor.close()
