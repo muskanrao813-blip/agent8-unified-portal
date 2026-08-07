@@ -1008,8 +1008,9 @@ def get_recommendations():
 
 @app.route('/api/agent8/dashboard', methods=['GET'])
 def get_dashboard():
-    """Returns KPI metrics from actual data (not hardcoded)"""
+    """Returns KPI metrics from actual data (Neon PostgreSQL)"""
     from datetime import datetime, timedelta
+    import psycopg2
 
     e = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
     s = request.args.get('start_date', (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
@@ -1027,18 +1028,31 @@ def get_dashboard():
 
         total_capacity = capacity_ai + capacity_others + capacity_mc + capacity_contractual
 
-        # Query actual professional metrics for this date range
-        all_metrics = query_professional_metrics(s, e)
+        # Query Neon PostgreSQL directly (like /professionals endpoint)
+        db_url = os.getenv('DATABASE_URL')
+        conn = psycopg2.connect(db_url)
+        cursor = conn.cursor()
 
-        # Calculate booked appointments from actual data
-        booked = sum(m.get('appts_count', 0) for m in all_metrics) if all_metrics else 0
-        provider_count = len(all_metrics) if all_metrics else 26
+        # Select best-matching period per provider for date range
+        cursor.execute('''
+            SELECT DISTINCT ON (provider_name)
+                   appts_count, improvement_score
+            FROM professional_metrics
+            WHERE start_date <= %s AND end_date >= %s
+            ORDER BY provider_name, end_date DESC, start_date ASC
+        ''', (e, s))
 
-        # Calculate average health improvement from actual data
-        improvements = [m.get('improvement_score', 0) for m in all_metrics if m.get('improvement_score')]
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        # Calculate booked appointments and improvements from actual data
+        booked = sum(row[0] or 0 for row in rows)
+        provider_count = len(rows)
+        improvements = [row[1] for row in rows if row[1] and row[1] > 0]
         avg_improvement = sum(improvements) / len(improvements) if improvements else 0
 
-        logger.info(f"[DASHBOARD] Returning actual metrics for {s} to {e}: {booked} appts, {provider_count} pros")
+        logger.info(f"[DASHBOARD] Actual metrics for {s} to {e}: {booked} appts, {provider_count} pros")
 
         util = round((booked / max(total_capacity, 1)) * 100, 1)
         available_slots = max(total_capacity - booked, 0)
