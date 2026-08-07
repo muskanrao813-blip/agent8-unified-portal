@@ -1033,12 +1033,13 @@ def get_dashboard():
         conn = psycopg2.connect(db_url)
         cursor = conn.cursor()
 
-        # Select best-matching period per provider (latest end_date that overlaps)
+        # Get SINGLE best-matching period per provider
+        # Use subquery with MAX(end_date), MAX(start_date) to avoid duplicates
         cursor.execute('''
             SELECT appts_count, improvement_score
-            FROM professional_metrics
-            WHERE (provider_name, end_date) IN (
-                SELECT provider_name, MAX(end_date)
+            FROM professional_metrics pm
+            WHERE (provider_name, end_date, start_date) IN (
+                SELECT provider_name, MAX(end_date), MAX(start_date)
                 FROM professional_metrics
                 WHERE start_date <= %s AND end_date >= %s
                 GROUP BY provider_name
