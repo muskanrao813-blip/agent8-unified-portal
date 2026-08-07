@@ -1033,30 +1033,22 @@ def get_dashboard():
         conn = psycopg2.connect(db_url)
         cursor = conn.cursor()
 
-        # Fetch all overlapping periods and sum appointments for best-matching period
-        # Best match: period with span closest to user's requested span
+        # Get best-matching period: use DISTINCT ON for each provider
+        # Prefer period with span closest to user's requested span
         from datetime import datetime as dt
         user_span_days = (dt.strptime(e, '%Y-%m-%d') - dt.strptime(s, '%Y-%m-%d')).days
 
-        # Get ONE period per provider: the one with span closest to user's span
         cursor.execute('''
-            SELECT provider_name, appts_count, improvement_score,
-                   EXTRACT(DAY FROM (end_date - start_date))::INT as period_days
+            SELECT DISTINCT ON (provider_name)
+                   appts_count, improvement_score
             FROM professional_metrics
             WHERE start_date <= %s AND end_date >= %s
             ORDER BY provider_name,
-                     ABS(EXTRACT(DAY FROM (end_date - start_date))::INT - %s) ASC
+                     ABS(EXTRACT(DAY FROM (end_date - start_date))::INT - %s) ASC,
+                     end_date DESC
         ''', (e, s, user_span_days))
 
-        all_rows = cursor.fetchall()
-
-        # Keep only first occurrence per provider (already sorted by span diff)
-        seen = set()
-        rows = []
-        for row in all_rows:
-            if row[0] not in seen:
-                rows.append((row[1], row[2]))  # (appts_count, improvement_score)
-                seen.add(row[0])
+        rows = cursor.fetchall()
 
         rows = cursor.fetchall()
         cursor.close()
