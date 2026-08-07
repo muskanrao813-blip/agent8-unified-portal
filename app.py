@@ -237,7 +237,8 @@ def get_trino_connection():
             user=TRINO_USER,
             auth=BasicAuthentication(TRINO_USER, TRINO_PASSWORD),
             catalog=TRINO_CATALOG,
-            verify=False  # For dev; use True in production
+            http_scheme='https',  # CRITICAL: HTTPS for authentication
+            verify=False  # Allow self-signed certificates
         )
         print(f"[TRINO] [OK] Connection successful")
         return conn
