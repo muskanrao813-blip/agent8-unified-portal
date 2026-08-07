@@ -131,9 +131,9 @@ def query_professional_metrics(start_date, end_date):
                        qa_score, improvement_score, improvement_total, status, forecast_7d,
                        patient_count, with_lab_data, without_lab_data
                 FROM professional_metrics
-                WHERE start_date = %s AND end_date = %s
+                WHERE start_date <= %s AND end_date >= %s
                 ORDER BY utilization_pct DESC
-            ''', (start_date, end_date))
+            ''', (end_date, start_date))
 
             rows = cursor.fetchall()
             cursor.close()
@@ -155,9 +155,9 @@ def query_professional_metrics(start_date, end_date):
                        qa_score, improvement_score, improvement_total, status, forecast_7d,
                        patient_count, with_lab_data, without_lab_data
                 FROM professional_metrics
-                WHERE start_date = ? AND end_date = ?
+                WHERE start_date <= ? AND end_date >= ?
                 ORDER BY utilization_pct DESC
-            ''', (start_date, end_date))
+            ''', (end_date, start_date))
 
             rows = cursor.fetchall()
             conn.close()
