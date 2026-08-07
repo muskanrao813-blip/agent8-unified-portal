@@ -129,7 +129,7 @@ def store_professional_metric(provider_name, cohort, start_date, end_date, appts
 
 
 def query_professional_metrics(start_date, end_date):
-    """Query metrics for a date range"""
+    """Query metrics for a date range - returns BEST MATCHING period per provider"""
 
     logger.info(f"[QUERY] Params: USE_POSTGRES={USE_POSTGRES}, postgres_conn={postgres_conn is not None}, start={start_date}, end={end_date}")
 
@@ -137,15 +137,17 @@ def query_professional_metrics(start_date, end_date):
         try:
             # psycopg3 cursor with dict-like rows
             cursor = postgres_conn.cursor()
-            logger.info(f"[DB-POSTGRES] Executing: WHERE start_date <= '{end_date}' AND end_date >= '{start_date}'")
+            logger.info(f"[DB-POSTGRES] Executing: Best matching period for {start_date} to {end_date}")
+            # Select best-matching period: latest end_date, then closest span to user range
             cursor.execute('''
-                SELECT provider_name, cohort, appts_count, capacity, utilization_pct,
+                SELECT DISTINCT ON (provider_name)
+                       provider_name, cohort, appts_count, capacity, utilization_pct,
                        qa_score, improvement_score, improvement_total, status, forecast_7d,
                        patient_count, with_lab_data, without_lab_data
                 FROM professional_metrics
                 WHERE start_date <= %s AND end_date >= %s
-                ORDER BY utilization_pct DESC
-            ''', (end_date, start_date))
+                ORDER BY provider_name, end_date DESC, ABS((end_date - start_date) - (%s::date - %s::date)) ASC
+            ''', (end_date, start_date, end_date, start_date))
 
             rows = cursor.fetchall()
             cursor.close()
@@ -171,13 +173,19 @@ def query_professional_metrics(start_date, end_date):
         try:
             conn = sqlite3.connect(METRICS_DB_PATH)
             cursor = conn.cursor()
-            logger.info(f"[DB-SQLITE] Executing: WHERE start_date <= '{end_date}' AND end_date >= '{start_date}'")
+            logger.info(f"[DB-SQLITE] Executing: Best matching period for {start_date} to {end_date}")
+            # For each provider, select the best matching period (latest end_date)
             cursor.execute('''
                 SELECT provider_name, cohort, appts_count, capacity, utilization_pct,
                        qa_score, improvement_score, improvement_total, status, forecast_7d,
                        patient_count, with_lab_data, without_lab_data
                 FROM professional_metrics
-                WHERE start_date <= ? AND end_date >= ?
+                WHERE (provider_name, end_date) IN (
+                    SELECT provider_name, MAX(end_date)
+                    FROM professional_metrics
+                    WHERE start_date <= ? AND end_date >= ?
+                    GROUP BY provider_name
+                )
                 ORDER BY utilization_pct DESC
             ''', (end_date, start_date))
 
