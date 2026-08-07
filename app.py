@@ -1033,22 +1033,40 @@ def get_dashboard():
         conn = psycopg2.connect(db_url)
         cursor = conn.cursor()
 
-        # Get best-matching period: use DISTINCT ON for each provider
-        # Prefer period with span closest to user's requested span
+        # SIMPLE & CLEAR: Fetch all overlapping periods, then select best match in Python
         from datetime import datetime as dt
         user_span_days = (dt.strptime(e, '%Y-%m-%d') - dt.strptime(s, '%Y-%m-%d')).days
 
+        # Get ALL overlapping periods
         cursor.execute('''
-            SELECT DISTINCT ON (provider_name)
-                   appts_count, improvement_score
+            SELECT provider_name, appts_count, improvement_score, start_date, end_date
             FROM professional_metrics
             WHERE start_date <= %s AND end_date >= %s
-            ORDER BY provider_name,
-                     ABS(EXTRACT(DAY FROM (end_date - start_date))::INT - %s) ASC,
-                     end_date DESC
-        ''', (e, s, user_span_days))
+            ORDER BY provider_name, end_date DESC, start_date DESC
+        ''', (e, s))
 
-        rows = cursor.fetchall()
+        all_periods = cursor.fetchall()
+
+        # For each provider, select the period with span CLOSEST to user's span
+        best_per_provider = {}
+        for row in all_periods:
+            provider = row[0]
+            appts = row[1]
+            improvement = row[2]
+            start = row[3]
+            end = row[4]
+
+            period_span = (end - start).days
+            span_diff = abs(period_span - user_span_days)
+
+            # Select if no prior entry, or if this period is a better match
+            if provider not in best_per_provider:
+                best_per_provider[provider] = (appts, improvement, span_diff)
+            elif span_diff < best_per_provider[provider][2]:
+                best_per_provider[provider] = (appts, improvement, span_diff)
+
+        # Build final rows
+        rows = [(v[0], v[1]) for v in best_per_provider.values()]
 
         rows = cursor.fetchall()
         cursor.close()

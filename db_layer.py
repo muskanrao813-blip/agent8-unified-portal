@@ -137,30 +137,48 @@ def query_professional_metrics(start_date, end_date):
         try:
             # psycopg3 cursor with dict-like rows
             cursor = postgres_conn.cursor()
-            logger.info(f"[DB-POSTGRES] Executing: Best matching period for {start_date} to {end_date}")
-            # Select best-matching period: latest end_date that overlaps, prefer longest span for that end_date
+            logger.info(f"[DB-POSTGRES] Executing: Fetch ALL overlapping periods for {start_date} to {end_date}")
+            # Fetch ALL overlapping periods - Python will select best match
             cursor.execute('''
-                SELECT DISTINCT ON (provider_name)
-                       provider_name, cohort, appts_count, capacity, utilization_pct,
+                SELECT provider_name, cohort, appts_count, capacity, utilization_pct,
                        qa_score, improvement_score, improvement_total, status, forecast_7d,
-                       patient_count, with_lab_data, without_lab_data
+                       patient_count, with_lab_data, without_lab_data, start_date, end_date
                 FROM professional_metrics
                 WHERE start_date <= %s AND end_date >= %s
-                ORDER BY provider_name, end_date DESC, start_date ASC
+                ORDER BY provider_name, end_date DESC, start_date DESC
             ''', (end_date, start_date))
 
             rows = cursor.fetchall()
             cursor.close()
 
             # Convert psycopg3 rows to dict
-            results = []
+            raw_results = []
             if rows:
                 # Get column names from cursor description
                 col_names = [desc[0] for desc in cursor.description] if cursor.description else []
                 for row in rows:
-                    results.append(dict(zip(col_names, row)))
+                    raw_results.append(dict(zip(col_names, row)))
 
-            logger.info(f"[DB-POSTGRES] SUCCESS: Queried {len(results)} metrics")
+            # SELECT BEST MATCHING PERIOD FOR EACH PROVIDER (in Python)
+            from datetime import datetime as dt
+            user_span_days = (dt.strptime(end_date, '%Y-%m-%d') - dt.strptime(start_date, '%Y-%m-%d')).days
+
+            best_per_provider = {}
+            for row in raw_results:
+                provider = row['provider_name']
+                period_span = (row['end_date'] - row['start_date']).days
+                span_diff = abs(period_span - user_span_days)
+
+                # Select if no prior entry, or if this period is a better match
+                if provider not in best_per_provider:
+                    best_per_provider[provider] = (row, span_diff)
+                elif span_diff < best_per_provider[provider][1]:
+                    best_per_provider[provider] = (row, span_diff)
+
+            # Build final results (remove span_diff from output)
+            results = [v[0] for v in best_per_provider.values()]
+
+            logger.info(f"[DB-POSTGRES] SUCCESS: Selected best period for {len(results)} providers")
             return results
         except Exception as e:
             logger.error(f"[DB-POSTGRES] ERROR: {str(e)}")
@@ -173,28 +191,24 @@ def query_professional_metrics(start_date, end_date):
         try:
             conn = sqlite3.connect(METRICS_DB_PATH)
             cursor = conn.cursor()
-            logger.info(f"[DB-SQLITE] Executing: Best matching period for {start_date} to {end_date}")
-            # For each provider, select the best matching period (latest end_date)
+            logger.info(f"[DB-SQLITE] Executing: Fetch ALL overlapping periods for {start_date} to {end_date}")
+            # Fetch ALL overlapping periods - Python will select best match
             cursor.execute('''
                 SELECT provider_name, cohort, appts_count, capacity, utilization_pct,
                        qa_score, improvement_score, improvement_total, status, forecast_7d,
-                       patient_count, with_lab_data, without_lab_data
+                       patient_count, with_lab_data, without_lab_data, start_date, end_date
                 FROM professional_metrics
-                WHERE (provider_name, end_date) IN (
-                    SELECT provider_name, MAX(end_date)
-                    FROM professional_metrics
-                    WHERE start_date <= ? AND end_date >= ?
-                    GROUP BY provider_name
-                )
-                ORDER BY utilization_pct DESC
+                WHERE start_date <= ? AND end_date >= ?
+                ORDER BY provider_name, end_date DESC, start_date DESC
             ''', (end_date, start_date))
 
             rows = cursor.fetchall()
             conn.close()
 
-            results = []
+            # Convert rows to dicts
+            raw_results = []
             for row in rows:
-                results.append({
+                raw_results.append({
                     'provider_name': row[0],
                     'cohort': row[1],
                     'appts_count': row[2],
@@ -207,9 +221,37 @@ def query_professional_metrics(start_date, end_date):
                     'forecast_7d': row[9],
                     'patient_count': row[10],
                     'with_lab_data': row[11],
-                    'without_lab_data': row[12]
+                    'without_lab_data': row[12],
+                    'start_date': row[13],
+                    'end_date': row[14]
                 })
-            logger.info(f"[DB-SQLITE] Queried {len(results)} metrics")
+
+            # SELECT BEST MATCHING PERIOD FOR EACH PROVIDER (in Python)
+            from datetime import datetime as dt
+            user_span_days = (dt.strptime(end_date, '%Y-%m-%d') - dt.strptime(start_date, '%Y-%m-%d')).days
+
+            best_per_provider = {}
+            for row in raw_results:
+                provider = row['provider_name']
+                period_span = (row['end_date'] - row['start_date']).days
+                span_diff = abs(period_span - user_span_days)
+
+                # Select if no prior entry, or if this period is a better match
+                if provider not in best_per_provider:
+                    best_per_provider[provider] = (row, span_diff)
+                elif span_diff < best_per_provider[provider][1]:
+                    best_per_provider[provider] = (row, span_diff)
+
+            # Build final results (remove span_diff and date fields from output)
+            results = []
+            for row, _ in best_per_provider.values():
+                # Remove start_date and end_date from output
+                row_copy = row.copy()
+                row_copy.pop('start_date', None)
+                row_copy.pop('end_date', None)
+                results.append(row_copy)
+
+            logger.info(f"[DB-SQLITE] Selected best period for {len(results)} providers")
             return results
         except Exception as e:
             logger.error(f"[DB-SQLITE] Query error: {str(e)}")
