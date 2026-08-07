@@ -138,7 +138,7 @@ def query_professional_metrics(start_date, end_date):
             # psycopg3 cursor with dict-like rows
             cursor = postgres_conn.cursor()
             logger.info(f"[DB-POSTGRES] Executing: Best matching period for {start_date} to {end_date}")
-            # Select best-matching period: latest end_date, then closest span to user range
+            # Select best-matching period: latest end_date that overlaps, prefer longest span for that end_date
             cursor.execute('''
                 SELECT DISTINCT ON (provider_name)
                        provider_name, cohort, appts_count, capacity, utilization_pct,
@@ -146,8 +146,8 @@ def query_professional_metrics(start_date, end_date):
                        patient_count, with_lab_data, without_lab_data
                 FROM professional_metrics
                 WHERE start_date <= %s AND end_date >= %s
-                ORDER BY provider_name, end_date DESC, ABS((end_date - start_date) - (%s::date - %s::date)) ASC
-            ''', (end_date, start_date, end_date, start_date))
+                ORDER BY provider_name, end_date DESC, start_date ASC
+            ''', (end_date, start_date))
 
             rows = cursor.fetchall()
             cursor.close()
