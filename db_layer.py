@@ -22,23 +22,30 @@ if not USE_POSTGRES:
 
 # PostgreSQL connection
 postgres_conn = None
+print(f"[DB-STARTUP] USE_POSTGRES={USE_POSTGRES}")
 if USE_POSTGRES:
     try:
         import psycopg2
         from psycopg2.extras import RealDictCursor
 
         DB_URL = os.getenv('DATABASE_URL', '')
+        print(f"[DB-STARTUP] DATABASE_URL set: {bool(DB_URL)}")
         if DB_URL:
             # Parse connection string: postgresql://user:password@host:port/database
+            print(f"[DB-STARTUP] Attempting PostgreSQL connection...")
             postgres_conn = psycopg2.connect(DB_URL)
+            print(f"[DB-STARTUP] ✓ PostgreSQL connected!")
             logger.info("[DB] Connected to PostgreSQL")
         else:
+            print(f"[DB-STARTUP] DATABASE_URL not set - falling back to SQLite")
             logger.warning("[DB] DATABASE_URL not set - falling back to SQLite")
             USE_POSTGRES = False
     except ImportError:
+        print(f"[DB-STARTUP] psycopg2 not installed - using SQLite")
         logger.warning("[DB] psycopg2 not installed - using SQLite")
         USE_POSTGRES = False
     except Exception as e:
+        print(f"[DB-STARTUP] PostgreSQL connection failed: {str(e)}")
         logger.error(f"[DB] PostgreSQL connection failed: {str(e)} - falling back to SQLite")
         USE_POSTGRES = False
 
@@ -123,9 +130,12 @@ def store_professional_metric(provider_name, cohort, start_date, end_date, appts
 def query_professional_metrics(start_date, end_date):
     """Query metrics for a date range"""
 
+    logger.info(f"[QUERY] Params: USE_POSTGRES={USE_POSTGRES}, postgres_conn={postgres_conn is not None}, start={start_date}, end={end_date}")
+
     if USE_POSTGRES and postgres_conn:
         try:
             cursor = postgres_conn.cursor(cursor_factory=RealDictCursor)
+            logger.info(f"[DB-POSTGRES] Executing: WHERE start_date <= '{end_date}' AND end_date >= '{start_date}'")
             cursor.execute('''
                 SELECT provider_name, cohort, appts_count, capacity, utilization_pct,
                        qa_score, improvement_score, improvement_total, status, forecast_7d,
@@ -140,16 +150,20 @@ def query_professional_metrics(start_date, end_date):
 
             # Convert RealDictRow to regular dict
             results = [dict(row) for row in rows]
-            logger.info(f"[DB-POSTGRES] Queried {len(results)} metrics")
+            logger.info(f"[DB-POSTGRES] SUCCESS: Queried {len(results)} metrics")
             return results
         except Exception as e:
-            logger.error(f"[DB-POSTGRES] Query error: {str(e)}")
+            logger.error(f"[DB-POSTGRES] ERROR: {str(e)}")
+            import traceback
+            logger.error(traceback.format_exc())
             return []
     else:
         # Fall back to SQLite
+        logger.info(f"[DB-SQLITE] Using SQLite (USE_POSTGRES={USE_POSTGRES}, conn={postgres_conn is not None})")
         try:
             conn = sqlite3.connect(METRICS_DB_PATH)
             cursor = conn.cursor()
+            logger.info(f"[DB-SQLITE] Executing: WHERE start_date <= '{end_date}' AND end_date >= '{start_date}'")
             cursor.execute('''
                 SELECT provider_name, cohort, appts_count, capacity, utilization_pct,
                        qa_score, improvement_score, improvement_total, status, forecast_7d,
