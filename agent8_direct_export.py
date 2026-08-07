@@ -25,11 +25,18 @@ if not os.path.exists(DATA_DIR):
 from app import MC_DIETICIANS, PROVIDER_CAPACITY, PROVIDER_CAPACITY_OVERRIDE, execute_trino_query, get_qa_scores
 from app import count_working_days_inhouse, count_working_days_contractual, get_cohort_for_provider, calculate_rubric_status
 
-def export_agent8_direct():
-    """Export Agent 8 metrics directly from Trino to Excel"""
+def export_agent8_direct(backfill=True):
+    """Export Agent 8 metrics directly from Trino to Excel
+
+    Args:
+        backfill: If True, export from 2024-01-01. If False, export last 23 days.
+    """
 
     end_date = datetime.now()
-    start_date = end_date - timedelta(days=23)
+    if backfill:
+        start_date = datetime(2024, 1, 1)  # Backfill from 2024
+    else:
+        start_date = end_date - timedelta(days=23)  # Daily update: 23-day window
 
     start_str = start_date.strftime('%Y-%m-%d')
     end_str = end_date.strftime('%Y-%m-%d')
@@ -39,91 +46,109 @@ def export_agent8_direct():
     logger.info(f"Professionals: {len(MC_DIETICIANS)}")
 
     try:
-        # Get working days
-        d_inhouse = count_working_days_inhouse(start_str, end_str)
-        d_contractual = count_working_days_contractual(start_str, end_str)
-        logger.info(f"Working days: inhouse={d_inhouse}, contractual={d_contractual}")
+        all_rows = []
 
-        # Get QA scores
-        qa_scores = get_qa_scores()
-        logger.info(f"QA scores loaded: {len(qa_scores)} providers")
+        # Process in 30-day chunks to avoid timeout
+        chunk_size = 30
+        current_date = start_date
+        chunk_num = 0
 
-        # Query improvements from Agent 8
-        improvements = {}
-        try:
-            resp = requests.get(
-                f'http://localhost:5001/api/agent8/dietician-improvement?start_date={start_str}&end_date={end_str}',
-                timeout=10
-            )
-            if resp.status_code == 200:
-                for item in resp.json().get('data', []):
-                    improvements[item.get('dietician')] = {
-                        'score': item.get('improvement_score', 0),
-                        'improved': item.get('patients_improved', 0),
-                        'total': item.get('patients_total', 0)
-                    }
-                logger.info(f"Improvements loaded: {len(improvements)}")
-        except Exception as e:
-            logger.warning(f"Couldn't load improvements: {e}")
+        while current_date < end_date:
+            chunk_end = min(current_date + timedelta(days=chunk_size), end_date)
+            chunk_start_str = current_date.strftime('%Y-%m-%d')
+            chunk_end_str = chunk_end.strftime('%Y-%m-%d')
+            chunk_num += 1
 
-        # Calculate for each MC dietician
-        rows = []
-        for provider_name in MC_DIETICIANS:
-            cohort = get_cohort_for_provider(provider_name)
+            logger.info(f"\n[CHUNK {chunk_num}] {chunk_start_str} to {chunk_end_str}")
 
-            # Query appointments from Trino
-            q_appts = f"""SELECT COUNT(*) as appt_count
-                         FROM deltalake.dl_standard_pbireporting.f_appointmentflattable
-                         WHERE doctorname = '{provider_name}'
-                         AND appointmentstatus IN ('COM', 'BOOKED')
-                         AND CAST(appointmentdate AS DATE) >= DATE('{start_str}')
-                         AND CAST(appointmentdate AS DATE) <= DATE('{end_str}')
-                        """
-            r_appts = execute_trino_query(q_appts)
-            appts = r_appts[0]['appt_count'] if r_appts else 0
+            # Get working days for this chunk
+            d_inhouse = count_working_days_inhouse(chunk_start_str, chunk_end_str)
+            d_contractual = count_working_days_contractual(chunk_start_str, chunk_end_str)
 
-            # Calculate capacity
-            working_days = d_contractual if cohort == 'CONTRACTUAL' else d_inhouse
-            slots_per_day = PROVIDER_CAPACITY_OVERRIDE.get(provider_name, PROVIDER_CAPACITY.get(cohort, 0))
+            # Get QA scores
+            qa_scores = get_qa_scores()
 
-            if slots_per_day <= 0:
-                logger.warning(f"Unknown cohort {cohort} for {provider_name}")
-                continue
+            # Query improvements from Agent 8
+            improvements = {}
+            try:
+                resp = requests.get(
+                    f'http://localhost:5001/api/agent8/dietician-improvement?start_date={chunk_start_str}&end_date={chunk_end_str}',
+                    timeout=10
+                )
+                if resp.status_code == 200:
+                    for item in resp.json().get('data', []):
+                        improvements[item.get('dietician')] = {
+                            'score': item.get('improvement_score', 0),
+                            'improved': item.get('patients_improved', 0),
+                            'total': item.get('patients_total', 0)
+                        }
+            except Exception as e:
+                logger.warning(f"Couldn't load improvements: {e}")
 
-            capacity = slots_per_day * working_days
-            utilization = round((appts / max(capacity, 1)) * 100, 1)
+            # Calculate for each MC dietician for this chunk
+            rows = []
+            for provider_name in MC_DIETICIANS:
+                cohort = get_cohort_for_provider(provider_name)
 
-            # Get scores
-            qa_score = qa_scores.get(provider_name, {}).get('score', 0) or 0
-            improvement = improvements.get(provider_name, {})
-            improvement_score = improvement.get('score', 0) or 0
+                # Query appointments from Trino for this chunk
+                q_appts = f"""SELECT COUNT(*) as appt_count
+                             FROM deltalake.dl_standard_pbireporting.f_appointmentflattable
+                             WHERE doctorname = '{provider_name}'
+                             AND appointmentstatus IN ('COM', 'BOOKED')
+                             AND CAST(appointmentdate AS DATE) >= DATE('{chunk_start_str}')
+                             AND CAST(appointmentdate AS DATE) <= DATE('{chunk_end_str}')
+                            """
+                r_appts = execute_trino_query(q_appts)
+                appts = r_appts[0]['appt_count'] if r_appts else 0
 
-            # Status
-            status = calculate_rubric_status(utilization, qa_score, improvement_score, cohort)
+                # Calculate capacity for this chunk
+                working_days = d_contractual if cohort == 'CONTRACTUAL' else d_inhouse
+                slots_per_day = PROVIDER_CAPACITY_OVERRIDE.get(provider_name, PROVIDER_CAPACITY.get(cohort, 0))
 
-            # Forecast
-            forecast_7d = int(appts / working_days) if working_days > 0 else 0
+                if slots_per_day <= 0:
+                    logger.warning(f"Unknown cohort {cohort} for {provider_name}")
+                    continue
 
-            rows.append({
-                'provider_name': provider_name,
-                'cohort': cohort,
-                'start_date': start_str,
-                'end_date': end_str,
-                'appts_count': appts,
-                'capacity': capacity,
-                'utilization_pct': utilization,
-                'qa_score': qa_score,
-                'improvement_score': improvement_score,
-                'improvement_total': improvement.get('total', 0),
-                'status': status,
-                'forecast_7d': forecast_7d,
-                'patient_count': 0,
-                'with_lab_data': 0,
-                'without_lab_data': 0
-            })
+                capacity = slots_per_day * working_days
+                utilization = round((appts / max(capacity, 1)) * 100, 1)
 
-        df = pd.DataFrame(rows)
-        logger.info(f"Calculated {len(df)} professionals")
+                # Get scores
+                qa_score = qa_scores.get(provider_name, {}).get('score', 0) or 0
+                improvement = improvements.get(provider_name, {})
+                improvement_score = improvement.get('score', 0) or 0
+
+                # Status
+                status = calculate_rubric_status(utilization, qa_score, improvement_score, cohort)
+
+                # Forecast
+                forecast_7d = int(appts / working_days) if working_days > 0 else 0
+
+                rows.append({
+                    'provider_name': provider_name,
+                    'cohort': cohort,
+                    'start_date': chunk_start_str,
+                    'end_date': chunk_end_str,
+                    'appts_count': appts,
+                    'capacity': capacity,
+                    'utilization_pct': utilization,
+                    'qa_score': qa_score,
+                    'improvement_score': improvement_score,
+                    'improvement_total': improvement.get('total', 0),
+                    'status': status,
+                    'forecast_7d': forecast_7d,
+                    'patient_count': 0,
+                    'with_lab_data': 0,
+                    'without_lab_data': 0
+                })
+
+            all_rows.extend(rows)
+            logger.info(f"Chunk {chunk_num}: {len(rows)} rows")
+
+            current_date = chunk_end + timedelta(days=1)
+
+        # Create DataFrame from all chunks
+        df = pd.DataFrame(all_rows)
+        logger.info(f"Calculated {len(all_rows)} total rows across {chunk_num} chunks")
 
         # Export
         timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
