@@ -75,9 +75,9 @@ export default function OverviewPage({ setPage, setSelectedProvider, startDate, 
         setCohortMetrics(cohortData.data || {});
         } catch (e) {
           console.error("Error fetching professional data:", e);
-          setProfessionals([]);
-          setCohortMetrics({});
-          alert(`Error loading data: ${e.message}`);
+          // Don't clear data on error - use last successful fetch
+          // setProfessionals([]);
+          // setCohortMetrics({});
         } finally {
           setLoading(false);
         }

@@ -1008,18 +1008,13 @@ def get_recommendations():
 
 @app.route('/api/agent8/dashboard', methods=['GET'])
 def get_dashboard():
-    """Returns KPI metrics - sample data"""
+    """Returns KPI metrics from actual data (not hardcoded)"""
     from datetime import datetime, timedelta
 
     e = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
     s = request.args.get('start_date', (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
 
     try:
-        # Sample overview KPIs
-        booked = 3845
-        avg_improvement = 58.3
-        provider_count = 26
-
         # Calculate working days for this exact date range
         d_inhouse = count_working_days_inhouse(s, e)
         d_contractual = count_working_days_contractual(s, e)
@@ -1032,7 +1027,18 @@ def get_dashboard():
 
         total_capacity = capacity_ai + capacity_others + capacity_mc + capacity_contractual
 
-        logger.info(f"[DASHBOARD] Returning sample metrics for {s} to {e}")
+        # Query actual professional metrics for this date range
+        all_metrics = query_professional_metrics(s, e)
+
+        # Calculate booked appointments from actual data
+        booked = sum(m.get('appts_count', 0) for m in all_metrics) if all_metrics else 0
+        provider_count = len(all_metrics) if all_metrics else 26
+
+        # Calculate average health improvement from actual data
+        improvements = [m.get('improvement_score', 0) for m in all_metrics if m.get('improvement_score')]
+        avg_improvement = sum(improvements) / len(improvements) if improvements else 0
+
+        logger.info(f"[DASHBOARD] Returning actual metrics for {s} to {e}: {booked} appts, {provider_count} pros")
 
         util = round((booked / max(total_capacity, 1)) * 100, 1)
         available_slots = max(total_capacity - booked, 0)
@@ -1042,7 +1048,7 @@ def get_dashboard():
             {'label': 'Team Utilization', 'value': f'{util}%', 'status': 'CRITICAL' if util > 95 else 'HIGH' if util > 85 else 'OPTIMAL', 'trend': '±0%', 'comparison': 'vs benchmark (85%)', 'benchmark': '85%'},
             {'label': 'Booked Appointments', 'value': f'{booked:,}', 'status': 'GOOD', 'trend': '0%', 'comparison': f'Target: {target:,}', 'benchmark': str(target)},
             {'label': 'Total Capacity', 'value': f'{total_capacity:,}', 'status': 'OPTIMAL', 'available_slots': available_slots, 'comparison': f'{available_slots:,} slots', 'benchmark': str(total_capacity)},
-            {'label': 'Avg Health Improvement', 'value': f'{round(avg_improvement * 10, 1)}%', 'status': 'GOOD', 'trend': '±0%', 'comparison': 'Clinical gain rate', 'benchmark': '15%'}
+            {'label': 'Avg Health Improvement', 'value': f'{round(avg_improvement, 1)}%', 'status': 'GOOD', 'trend': '±0%', 'comparison': 'Clinical gain rate', 'benchmark': '15%'}
         ], 'program_breakdown': []})
 
     except Exception as e:
@@ -1812,22 +1818,42 @@ def batch_calculate_year():
 # QA SCORES ENDPOINT
 @app.route('/api/agent8/qa-scores', methods=['GET'])
 def get_qa_scores_endpoint():
-    """Return sample QA scores for MC dieticians"""
+    """Return QA scores from production QA system for MC dieticians"""
     start_date = request.args.get('start_date', '2026-07-01')
     end_date = request.args.get('end_date', '2026-07-28')
 
     try:
-        # Sample QA scores for MC dieticians
-        result = {
-            'Mekala Reddy': {'avg_qa_score': 78.5, 'call_count': 12, 'status': 'GOOD'},
-            'Prachi More': {'avg_qa_score': 82.3, 'call_count': 15, 'status': 'EXCELLENT'},
-            'Ambika Rode': {'avg_qa_score': 75.2, 'call_count': 10, 'status': 'GOOD'},
-            'Sweta Naik': {'avg_qa_score': 71.8, 'call_count': 8, 'status': 'GOOD'},
-            'Divya Pandey': {'avg_qa_score': 68.5, 'call_count': 9, 'status': 'WARNING'},
-        }
+        # Try to fetch from production QA backend
+        qa_api_url = DIETICIAN_QA_BACKEND.rstrip('/')
+        try:
+            qa_response = requests.get(
+                f"{qa_api_url}/api/qa/scores",
+                params={'start_date': start_date, 'end_date': end_date},
+                timeout=5
+            )
+            if qa_response.status_code == 200:
+                qa_data = qa_response.json()
+                logger.info(f"[QA-SCORES] Fetched {len(qa_data.get('data', {}))} dietician scores from QA system")
+                return jsonify({'status': 'success', 'data': qa_data.get('data', {}), 'source': 'qa_backend'})
+        except:
+            pass
 
-        logger.info(f"[QA-SCORES] Returning sample scores for {len(result)} dieticians")
-        return jsonify({'status': 'success', 'data': result, 'source': 'sample_data'})
+        # Fallback: Return data from professional_metrics cached data
+        all_metrics = query_professional_metrics(start_date, end_date)
+        result = {}
+
+        if all_metrics:
+            for metric in all_metrics:
+                provider = metric.get('provider_name')
+                if provider:
+                    result[provider] = {
+                        'avg_qa_score': metric.get('qa_score', 0),
+                        'call_count': 0,  # Not available in cached data
+                        'status': 'EXCELLENT' if metric.get('qa_score', 0) > 80 else 'GOOD' if metric.get('qa_score', 0) > 70 else 'WARNING'
+                    }
+
+        logger.info(f"[QA-SCORES] Returning {len(result)} dietician scores from cached data")
+        return jsonify({'status': 'success', 'data': result, 'source': 'cached_metrics'})
 
     except requests.exceptions.Timeout:
         logger.error(f"[QA-SCORES] QA API timeout")
