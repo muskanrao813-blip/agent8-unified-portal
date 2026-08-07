@@ -1539,46 +1539,63 @@ def server_error(e):
 # READ CACHED METRICS (INSTANT - no calculations)
 @app.route('/api/agent8/professionals', methods=['GET'])
 def get_professionals_cached():
-    """Returns pre-calculated professional metrics from cache (INSTANT)"""
+    """Returns pre-calculated professional metrics from Neon"""
     from datetime import datetime
+    import psycopg2
 
     start_date = request.args.get('start_date', '2026-07-01')
     end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
 
     try:
-        # Use db_layer abstraction (Supabase or SQLite)
-        rows = query_professional_metrics(start_date, end_date)
+        # Connect directly to Neon
+        db_url = os.getenv('DATABASE_URL')
+        if not db_url:
+            return jsonify({'error': 'DATABASE_URL not configured', 'data': []}), 500
 
-        # If no data exists for this date range, calculate it automatically
-        if not rows:
-            logger.info(f"[PROFESSIONALS] No cached data for {start_date} to {end_date} - calculating...")
-            calc_result = calculate_and_store_metrics(start_date, end_date)
-            if calc_result.get('status') == 'success':
-                rows = query_professional_metrics(start_date, end_date)
-            else:
-                logger.warning(f"[PROFESSIONALS] Calculation failed: {calc_result.get('message')}")
+        conn = psycopg2.connect(db_url)
+        cursor = conn.cursor()
 
+        # Query Neon for date range
+        cursor.execute('''
+            SELECT provider_name, cohort, appts_count, capacity, utilization_pct,
+                   qa_score, improvement_score, improvement_total, status, forecast_7d
+            FROM professional_metrics
+            WHERE start_date <= %s AND end_date >= %s
+            ORDER BY utilization_pct DESC
+        ''', (end_date, start_date))
+
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        # Convert rows to dicts
         professionals = []
+        col_names = ['provider_name', 'cohort', 'appts_count', 'capacity', 'utilization_pct',
+                     'qa_score', 'improvement_score', 'improvement_total', 'status', 'forecast_7d']
+
         for idx, row in enumerate(rows, 1):
             prof_dict = {
                 'rank': str(idx).zfill(2),
-                'provider_name': row.get('provider_name'),
-                'cohort': row.get('cohort'),
-                'appts_count': row.get('appts_count'),
-                'capacity': row.get('capacity'),
-                'utilization_pct': row.get('utilization_pct'),
-                'qa_score': row.get('qa_score'),
-                'improvement_score': row.get('improvement_score'),
-                'improvement_total': row.get('improvement_total'),
-                'status': row.get('status'),
-                'forecast_7d': row.get('forecast_7d')
+                'provider_name': row[0],
+                'cohort': row[1],
+                'appts_count': row[2],
+                'capacity': row[3],
+                'utilization_pct': row[4],
+                'qa_score': row[5],
+                'improvement_score': row[6],
+                'improvement_total': row[7],
+                'status': row[8],
+                'forecast_7d': row[9]
             }
             professionals.append(prof_dict)
 
+        logger.info(f"[PROFESSIONALS] Returned {len(professionals)} professionals")
         return jsonify({'data': professionals, 'count': len(professionals)})
 
     except Exception as e:
-        logger.error(f"[CACHE] Error reading metrics: {str(e)}")
+        logger.error(f"[PROFESSIONALS] Error: {str(e)}")
+        import traceback
+        logger.error(traceback.format_exc())
         return jsonify({'error': str(e), 'data': []}), 500
 
 # COHORT PERFORMANCE ENDPOINT
