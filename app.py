@@ -1033,31 +1033,34 @@ def get_dashboard():
         conn = psycopg2.connect(db_url)
         cursor = conn.cursor()
 
-        # Calculate user's requested span
+        # Get best-matching period per provider based on span similarity
         from datetime import datetime as dt
-        user_span = (dt.strptime(e, '%Y-%m-%d') - dt.strptime(s, '%Y-%m-%d')).days
+        user_span_days = (dt.strptime(e, '%Y-%m-%d') - dt.strptime(s, '%Y-%m-%d')).days
 
-        # Get ALL overlapping periods for each provider
         cursor.execute('''
-            SELECT provider_name, end_date, start_date, appts_count, improvement_score
+            SELECT provider_name, appts_count, improvement_score,
+                   (end_date - start_date) as period_span
             FROM professional_metrics
             WHERE start_date <= %s AND end_date >= %s
-            ORDER BY provider_name
         ''', (e, s))
 
         all_rows = cursor.fetchall()
 
-        # For each provider, select the period with span CLOSEST to user's span
-        selected_rows = {}
+        # For each provider, pick the period with span closest to user's requested span
+        best_periods = {}
         for row in all_rows:
             provider = row[0]
-            period_span = (row[1] - row[2]).days
-            span_diff = abs(period_span - user_span)
+            appts = row[1]
+            improvement = row[2]
+            period_span_days = row[3].days if hasattr(row[3], 'days') else row[3]
 
-            if provider not in selected_rows or span_diff < selected_rows[provider][2]:
-                selected_rows[provider] = (row[3], row[4], span_diff)  # (appts, improvement, span_diff)
+            span_diff = abs(period_span_days - user_span_days)
 
-        rows = [(v[0], v[1]) for v in selected_rows.values()]
+            # Select if no prior selection or if this is closer
+            if provider not in best_periods or span_diff < best_periods[provider][3]:
+                best_periods[provider] = (appts, improvement, period_span_days, span_diff)
+
+        rows = [(v[0], v[1]) for v in best_periods.values()]
 
         rows = cursor.fetchall()
         cursor.close()
