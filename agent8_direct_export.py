@@ -65,8 +65,12 @@ def export_agent8_direct(backfill=True):
             d_inhouse = count_working_days_inhouse(chunk_start_str, chunk_end_str)
             d_contractual = count_working_days_contractual(chunk_start_str, chunk_end_str)
 
-            # Get QA scores
-            qa_scores = get_qa_scores()
+            # Get QA scores (skip if not available)
+            try:
+                qa_scores = get_qa_scores()
+            except Exception as e:
+                logger.warning(f"QA scores unavailable: {e}")
+                qa_scores = {}
 
             # Query improvements from Agent 8
             improvements = {}
