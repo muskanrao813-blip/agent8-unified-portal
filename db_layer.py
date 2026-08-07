@@ -34,7 +34,7 @@ if USE_POSTGRES:
             # Parse connection string: postgresql://user:password@host:port/database
             print(f"[DB-STARTUP] Attempting PostgreSQL connection...")
             postgres_conn = psycopg.connect(DB_URL)
-            print(f"[DB-STARTUP] ✓ PostgreSQL connected!")
+            print(f"[DB-STARTUP] [OK] PostgreSQL connected!")
             logger.info("[DB] Connected to PostgreSQL")
         else:
             print(f"[DB-STARTUP] DATABASE_URL not set - falling back to SQLite")

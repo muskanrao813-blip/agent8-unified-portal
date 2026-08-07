@@ -1,0 +1,104 @@
+═══════════════════════════════════════════════════════════════════════════════
+  GEMINI RECOMMENDATIONS - QUICK START
+═══════════════════════════════════════════════════════════════════════════════
+
+📋 WHAT'S IMPLEMENTED:
+  ✅ Real data analysis endpoint: /recommendations-proper
+  ✅ Gemini AI endpoint: /recommendations-gemini
+  ✅ Dashboard integration
+  ✅ Setup documentation
+  ⏳ WAITING FOR: Your Gemini API key
+
+═══════════════════════════════════════════════════════════════════════════════
+
+⚡ 3 QUICK STEPS TO ACTIVATE:
+
+1️⃣  GET API KEY (free, 5 minutes)
+   → Go to: https://makersuite.google.com/app/apikey
+   → Click: Create API Key
+   → Copy: The key
+
+2️⃣  SET ENVIRONMENT VARIABLE
+   PowerShell:
+   $env:GEMINI_API_KEY='your-api-key-here'
+
+   OR create .env file with:
+   GEMINI_API_KEY=your-api-key-here
+
+3️⃣  RESTART FLASK
+   Kill: pkill -f "python -B app.py"
+   Restart: python -B app.py
+
+✅ DONE! System active.
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🧪 TEST IT:
+  curl http://localhost:5001/api/agent8/recommendations-gemini?start_date=2026-07-01&end_date=2026-07-28
+
+  Expected: {"status": "success", "generated_by": "Gemini AI Agent", ...}
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📊 WHAT WORKS NOW:
+
+Real Data Analysis (No API key needed):
+  GET /api/agent8/recommendations-proper
+  Returns: Tiers, action plans, utilization %, QA scores, YoY seasonality
+
+Gemini AI Analysis (Needs your API key):
+  GET /api/agent8/recommendations-gemini
+  Returns: Strategic insights, root causes, predictive trends, quick wins
+
+Dashboard:
+  http://localhost:3000 → Recommendations tab
+  Shows both real data + Gemini AI insights
+
+═══════════════════════════════════════════════════════════════════════════════
+
+📁 REFERENCE DOCS:
+  GEMINI_SETUP.md (detailed setup guide)
+  GEMINI_RECOMMENDATIONS_COMPLETE.md (architecture overview)
+
+═══════════════════════════════════════════════════════════════════════════════
+
+🎯 WHAT GEMINI DOES:
+
+Analyzes:
+  • 26 MC dieticians (real data)
+  • Quality scores (from QA system)
+  • Appointment metrics (from Trino)
+  • Capacity benchmarks (from rule book)
+
+Recommends:
+  • Root causes of underperformance
+  • Systemic vs individual issues
+  • Strategic priorities
+  • Quick wins & long-term initiatives
+  • Resource allocation strategies
+
+Provides:
+  • Executive summary
+  • Strategic insights
+  • Actionable recommendations
+  • Success metrics
+  • Implementation timelines
+
+═══════════════════════════════════════════════════════════════════════════════
+
+❓ TROUBLESHOOTING:
+
+Q: Still says "API key not configured"
+A: Restart Flask - might need new terminal/PowerShell window
+
+Q: "API error: 401"
+A: Get new key from https://makersuite.google.com/app/apikey
+
+Q: Slow response (10-30 seconds)
+A: Normal - AI analysis takes time, subsequent calls faster
+
+═══════════════════════════════════════════════════════════════════════════════
+
+✨ YOU'RE ALL SET! Just provide the API key and you're good to go. 🚀
+
+═══════════════════════════════════════════════════════════════════════════════

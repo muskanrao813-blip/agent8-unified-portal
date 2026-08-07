@@ -1,0 +1,109 @@
+================================================================================
+  MASTER WORKFORCE CAPACITY VERIFICATION
+  Fixed: 2026-07-23
+================================================================================
+
+LOCKED CONFIGURATION
+====================
+Total Daily Capacity: 886 slots/day (VERIFIED IN TRINO QUERIES)
+
+BREAKDOWN BY COHORT
+===================
+
+1. IN-HOUSE AI (6 dieticians)
+   - Prachi More:              84 slots/day
+   - Ambika Rode:              84 slots/day
+   - Geeta Maggu:              84 slots/day
+   - Gitanjali Malik Sachdeva: 84 slots/day
+   - Chandni Sharma:           84 slots/day
+   - Tejashree Thorat:         84 slots/day
+   COHORT TOTAL:              504 slots/day
+
+2. IN-HOUSE OTHERS (2 dieticians)
+   - Chaithra B:               14 slots/day
+   - Shefali Dindorkar:        14 slots/day
+   COHORT TOTAL:               28 slots/day
+
+3. IN-HOUSE MC (3 dieticians + 1 doctor)
+   - Sweta Naik:               14 slots/day
+   - Divya Pandey:             14 slots/day
+   - Trupti Nakar:             14 slots/day
+   - Mekala Reddy (doctor):     4 slots/day
+   COHORT TOTAL:               46 slots/day
+
+4. CONTRACTUAL (14 dieticians)
+   - Hemlata Alawadhi:         22 slots/day
+   - Ruchi Singh:              22 slots/day
+   - Nisha Sharma:             22 slots/day
+   - Hitesh Kumar:             22 slots/day
+   - Priyadharshini R:         22 slots/day
+   - Avani Mekala:             22 slots/day
+   - Neha Suryawanshi:         22 slots/day
+   - Homeshwar Mandawliya:     22 slots/day
+   - Trapti Bhardwaj:          22 slots/day
+   - Asra Jabeen:              22 slots/day
+   - Midhat Zehra:             22 slots/day
+   - Aparna Bhardwaj:          22 slots/day
+   - Mital Bhadania:           22 slots/day
+   - Shikha Singh:             22 slots/day
+   COHORT TOTAL:              308 slots/day
+
+CAPACITY CALCULATION FORMULA
+============================
+Total = (6 × 84) + (2 × 14) + (3 × 14 + 1 × 4) + (14 × 22)
+      = 504 + 28 + 46 + 308
+      = 886 slots/day (MASTER VALUE - DO NOT CHANGE)
+
+For date ranges:
+Total Capacity = 886 × number_of_calendar_days (inclusive)
+
+EXAMPLE CALCULATIONS
+====================
+July 1-23, 2026 (23 days):
+  Capacity = 886 × 23 = 20,378 slots
+  Booked (status filter): 11,517 appointments
+  Utilization = 11,517 / 20,378 = 56.5%
+
+July 1-31, 2026 (31 days):
+  Capacity = 886 × 31 = 27,466 slots
+
+Single Day (July 23, 2026):
+  Capacity = 886 × 1 = 886 slots
+
+APPOINTMENT STATUS FILTER (MANDATORY)
+=====================================
+Include: COM, BOOKED, ACT, WIC, RES
+Exclude: CAN (Cancelled), ANC
+
+Data source: Trino f_appointmentflattable.appointmentstatus
+
+IMPLEMENTATION STATUS
+====================
+✓ Backend (app.py):
+  - Dashboard endpoint: Updated capacity from 466 → 886
+  - Dashboard-real endpoint: Updated capacity from 466 → 886
+  - Appointment status filter: Applied COM,BOOKED,ACT,WIC,RES
+
+✓ Memory System:
+  - MASTER_WORKFORCE_CONFIG.md created (project root)
+  - master_workforce_config.md saved (memory system)
+  - MEMORY.md index updated
+
+✓ Testing:
+  - Tested July 1-23 range: 20,378 capacity ✓
+  - Booked count: 11,517 ✓
+  - Utilization: 56.5% ✓
+
+NEXT STEPS FOR FRONTEND
+=======================
+1. Open clinical-dashboard/src/pages/Overview.jsx
+2. Verify Header component passes startDate/endDate to API
+3. Test date selection → verify KPI values update correctly
+4. Check Professional metrics table shows all 25 providers
+5. Verify cohort colors and badges match master workforce
+
+================================================================================
+LOCK STATUS: CONFIGURATION LOCKED 2026-07-23
+Do not modify capacity values, provider lists, or cohort assignments without
+explicit user approval. This document is the source of truth.
+================================================================================

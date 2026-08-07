@@ -26,17 +26,17 @@ def get_production_appointments(provider_name, start_date, end_date):
     """Query Trino for REAL appointment data - ALL statuses"""
 
     queries = [
-        # Query 1: Direct appointments table
+        # Query 1: Direct appointments table (FIXED: removed CAST)
         f"""SELECT COUNT(*) as cnt FROM deltalake.dl_standard_pbireporting.f_appointmentflattable
            WHERE doctorname = '{provider_name}'
-           AND CAST(appointmentdate AS DATE) >= DATE('{start_date}')
-           AND CAST(appointmentdate AS DATE) <= DATE('{end_date}')""",
+           AND appointmentdate >= DATE '{start_date}'
+           AND appointmentdate <= DATE '{end_date}'""",
 
         # Query 2: All claims (benefit-based appointments)
         f"""SELECT SUM(claim_count) as cnt FROM deltalake.dl_standard_pbireporting.managed_care_appt_utilization
            WHERE doctorname = '{provider_name}'
-           AND appointmentdate >= DATE('{start_date}')
-           AND appointmentdate <= DATE('{end_date}')""",
+           AND appointmentdate >= DATE '{start_date}'
+           AND appointmentdate <= DATE '{end_date}'""",
     ]
 
     logger.info(f"[TRINO-APPTS] Querying appointments for {provider_name}")
@@ -93,79 +93,84 @@ def get_production_improvements(provider_name, start_date, end_date):
     return improvements
 
 def export_production_metrics(backfill=True):
-    """Export ALL metrics from production sources"""
+    """Export metrics for MULTIPLE periods (full backfill + recent)"""
 
     end_date = datetime.now()
-    if backfill:
-        start_date = datetime(2024, 1, 1)
-    else:
-        start_date = end_date - timedelta(days=23)
-
-    start_str = start_date.strftime('%Y-%m-%d')
-    end_str = end_date.strftime('%Y-%m-%d')
-
-    logger.info("=" * 80)
-    logger.info("AGENT 8 PRODUCTION EXPORT")
-    logger.info("=" * 80)
-    logger.info(f"Date range: {start_str} to {end_str}")
-    logger.info(f"Mode: {'BACKFILL (2024-present)' if backfill else 'DAILY UPDATE (23 days)'}")
-    logger.info(f"Professionals: {len(MC_DIETICIANS)}")
-
-    # Get data once for entire period
-    logger.info("\n[1/4] Fetching QA scores...")
-    qa_scores = get_qa_scores()
-    logger.info(f"  QA scores loaded: {len(qa_scores)} professionals")
-
-    logger.info("\n[2/4] Calculating working days...")
-    d_inhouse = count_working_days_inhouse(start_str, end_str)
-    d_contractual = count_working_days_contractual(start_str, end_str)
-    logger.info(f"  IN-HOUSE: {d_inhouse} days, CONTRACTUAL: {d_contractual} days")
-
-    logger.info("\n[3/4] Processing appointments & improvements...")
     all_rows = []
 
-    for idx, provider_name in enumerate(MC_DIETICIANS, 1):
-        cohort = get_cohort_for_provider(provider_name)
-        working_days = d_contractual if cohort == 'CONTRACTUAL' else d_inhouse
-        slots_per_day = PROVIDER_CAPACITY_OVERRIDE.get(provider_name, PROVIDER_CAPACITY.get(cohort, 0))
+    # Define periods to export
+    periods = [
+        {'name': 'Full Backfill', 'start': datetime(2024, 1, 1), 'end': end_date},
+        {'name': 'Recent 23 Days', 'start': end_date - timedelta(days=23), 'end': end_date},
+    ]
 
-        if slots_per_day <= 0:
-            logger.warning(f"  [{idx}] {provider_name}: Unknown cohort {cohort}")
-            continue
+    logger.info("=" * 80)
+    logger.info("AGENT 8 PRODUCTION EXPORT - MULTI-PERIOD")
+    logger.info("=" * 80)
+    logger.info(f"Exporting {len(periods)} periods for {len(MC_DIETICIANS)} professionals")
 
-        # Get appointment data from Trino
-        appts = get_production_appointments(provider_name, start_str, end_str)
+    # For each period, export data
+    for period_info in periods:
+        start_date = period_info['start']
+        start_str = start_date.strftime('%Y-%m-%d')
+        end_str = period_info['end'].strftime('%Y-%m-%d')
 
-        # Get improvement data
-        improvements = get_production_improvements(provider_name, start_str, end_str)
+        logger.info(f"\n[PERIOD] {period_info['name']}: {start_str} to {end_str}")
 
-        # Calculate metrics
-        capacity = slots_per_day * working_days
-        utilization = round((appts / max(capacity, 1)) * 100, 1)
-        qa_score = qa_scores.get(provider_name, {}).get('score', 0) or 0
-        improvement_score = improvements.get('score', 0)
-        status = calculate_rubric_status(utilization, qa_score, improvement_score, cohort)
-        forecast_7d = int(appts / working_days) if working_days > 0 else 0
+        # Get data once for entire period
+        logger.info("  [1/3] Fetching QA scores...")
+        qa_scores = get_qa_scores()
+        logger.info(f"    QA scores loaded: {len(qa_scores)} professionals")
 
-        logger.info(f"  [{idx:2d}] {provider_name:<30} | Appts: {appts:>5} | Util: {utilization:>5.1f}% | QA: {qa_score:>5.1f} | Impr: {improvement_score:>5.1f}")
+        logger.info("  [2/3] Calculating working days...")
+        d_inhouse = count_working_days_inhouse(start_str, end_str)
+        d_contractual = count_working_days_contractual(start_str, end_str)
+        logger.info(f"    IN-HOUSE: {d_inhouse} days, CONTRACTUAL: {d_contractual} days")
 
-        all_rows.append({
-            'provider_name': provider_name,
-            'cohort': cohort,
-            'start_date': start_str,
-            'end_date': end_str,
-            'appts_count': appts,
-            'capacity': capacity,
-            'utilization_pct': utilization,
-            'qa_score': qa_score,
-            'improvement_score': improvement_score,
-            'improvement_total': improvements['total'],
-            'status': status,
-            'forecast_7d': forecast_7d,
-            'patient_count': improvements['total'],
-            'with_lab_data': improvements['improved'],
-            'without_lab_data': improvements['total'] - improvements['improved']
-        })
+        logger.info("  [3/3] Processing appointments & improvements...")
+
+        for idx, provider_name in enumerate(MC_DIETICIANS, 1):
+            cohort = get_cohort_for_provider(provider_name)
+            working_days = d_contractual if cohort == 'CONTRACTUAL' else d_inhouse
+            slots_per_day = PROVIDER_CAPACITY_OVERRIDE.get(provider_name, PROVIDER_CAPACITY.get(cohort, 0))
+
+            if slots_per_day <= 0:
+                logger.warning(f"  [{idx}] {provider_name}: Unknown cohort {cohort}")
+                continue
+
+            # Get appointment data from Trino
+            appts = get_production_appointments(provider_name, start_str, end_str)
+
+            # Get improvement data
+            improvements = get_production_improvements(provider_name, start_str, end_str)
+
+            # Calculate metrics
+            capacity = slots_per_day * working_days
+            utilization = round((appts / max(capacity, 1)) * 100, 1)
+            qa_score = qa_scores.get(provider_name, {}).get('score', 0) or 0
+            improvement_score = improvements.get('score', 0)
+            status = calculate_rubric_status(utilization, qa_score, improvement_score, cohort)
+            forecast_7d = int(appts / working_days) if working_days > 0 else 0
+
+            logger.info(f"    [{idx:2d}] {provider_name:<30} | Appts: {appts:>5} | Util: {utilization:>5.1f}% | QA: {qa_score:>5.1f} | Impr: {improvement_score:>5.1f}")
+
+            all_rows.append({
+                'provider_name': provider_name,
+                'cohort': cohort,
+                'start_date': start_str,
+                'end_date': end_str,
+                'appts_count': appts,
+                'capacity': capacity,
+                'utilization_pct': utilization,
+                'qa_score': qa_score,
+                'improvement_score': improvement_score,
+                'improvement_total': improvements['total'],
+                'status': status,
+                'forecast_7d': forecast_7d,
+                'patient_count': improvements['total'],
+                'with_lab_data': improvements['improved'],
+                'without_lab_data': improvements['total'] - improvements['improved']
+            })
 
     logger.info(f"\n[4/4] Exporting to Excel...")
 

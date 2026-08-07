@@ -1,0 +1,125 @@
+╔══════════════════════════════════════════════════════════════════════════════╗
+║                    AGENT 8 CALCULATION LOGICS - QUICK REFERENCE              ║
+║                                   2026-07-27                                  ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+
+⚠️  CRITICAL CONCEPTS - MEMORIZE THESE:
+
+1. THREE-LEVEL HIERARCHY
+   ┌─ LEVEL 1: OVERALL (Dashboard KPIs)
+   │  └─ All 26 professionals COMBINED
+   │     Endpoint: /api/agent8/dashboard
+   │
+   ├─ LEVEL 2: COHORT (Performance Cards)
+   │  └─ Each of 4 cohorts AGGREGATED
+   │     Endpoint: /api/agent8/cohort-performance
+   │
+   └─ LEVEL 3: INDIVIDUAL (Professionals Table)
+      └─ Each of 26 providers SEPARATELY
+         Endpoint: /api/agent8/professionals
+
+2. CAPACITY CONFIGURATION
+   ❌ DO NOT: Use COHORT_CAPACITY for individual metrics
+   ✅ DO USE: PROVIDER_CAPACITY for individual metrics
+
+   COHORT_CAPACITY (total for entire cohort):
+   - IN-HOUSE AI: 504 (6 dieticians × 84 each)
+   - IN-HOUSE OTHERS: 28 (2 staff × 14 each)
+   - IN-HOUSE MC: 46 (3 diet + 1 doc)
+   - CONTRACTUAL: 308 (14 dieticians × 22 each)
+
+   PROVIDER_CAPACITY (per individual):
+   - IN-HOUSE AI: 84 per dietician
+   - IN-HOUSE OTHERS: 14 per staff
+   - IN-HOUSE MC: 14 per person
+   - CONTRACTUAL: 22 per dietician
+
+3. WORKING DAYS
+   Exclude: ALL Sundays
+   Exclude: ALTERNATE Saturdays (every other Saturday)
+   Include: Monday-Friday always
+
+   IN-HOUSE: 19 days (July 1-23)
+   CONTRACTUAL: 20 days (July 1-23)
+
+   Function: count_working_days_inhouse() and count_working_days_contractual()
+
+4. STATUS CALCULATION (Multi-Factor Rubric)
+
+   PRIMARY: Utilization %
+   ├─ < 50%      → CRITICAL (underbooked)
+   ├─ 50-95%     → Check secondary factors
+   └─ > 95%      → OPTIMAL if good QA, else HIGH
+
+   SECONDARY: Improvement (IN-HOUSE MC only) + QA
+   ├─ If QA < 60 AND Improvement < 30 → CRITICAL
+   ├─ If well-booked AND QA ≥ 80 AND Improvement ≥ 40 → OPTIMAL
+   └─ Otherwise → HIGH
+
+   QA NULL/0: If util < 50% → CRITICAL, else → NA
+
+5. APPOINTMENT STATUS FILTER
+   EXCLUDE ONLY: CANCELLED, ANC
+   INCLUDE: All others (COM, BOOKED, ACT, WIC, RES, etc.)
+
+6. FORECAST 7-DAY
+   = total_appts_in_period / working_days_in_period
+   = Daily rate (past trend used to forecast future)
+
+   Example: Sweta 323 appts / 19 days = 17/day
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📁 DOCUMENTATION FILES:
+
+CALCULATION_LOGICS.md
+   ↳ Full reference guide with all formulas, examples, testing checklist
+   ↳ Read this before modifying any calculation logic
+
+app.py (lines 32-86)
+   ↳ All configuration constants (don't hardcode values!)
+   ↳ COHORT_CAPACITY, PROVIDER_CAPACITY, thresholds, etc.
+
+app.py (lines 333-366)
+   ↳ calculate_rubric_status() - Status calculation logic
+   ↳ Comments explain 3-factor rubric
+
+app.py (lines 440-465)
+   ↳ Capacity calculation in batch job
+   ↳ Shows correct use of PROVIDER_CAPACITY
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+🚨 MISTAKES THAT BROKE THINGS BEFORE:
+
+❌ Using COHORT_CAPACITY for individual provider capacity
+   Result: Shefali showed 532 capacity instead of 266
+
+❌ Summing capacity from daily snapshots without normalizing
+   Result: Dashboard showed 148,256 instead of 17,142
+
+❌ Hardcoding thresholds and values throughout code
+   Result: Had to find and fix 15+ locations
+
+❌ Not accounting for cohort-specific working days
+   Result: Wrong capacity for IN-HOUSE vs CONTRACTUAL
+
+❌ Applying improvement score to non-MC cohorts
+   Result: Wrong status for AI and Others
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ BEFORE MODIFYING ANY CALCULATION:
+
+1. Read CALCULATION_LOGICS.md completely
+2. Check the 3-level hierarchy - which level are you modifying?
+3. Use configuration constants - never hardcode values
+4. Test all 3 levels (Overall, Cohort, Individual)
+5. Update CALCULATION_LOGICS.md if you change anything
+6. Ensure inline comments are clear for future developers
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Last Updated: 2026-07-27
+Maintainer: Claude Code
+Status: All logics documented and embedded in code

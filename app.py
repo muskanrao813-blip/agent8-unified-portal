@@ -1556,19 +1556,16 @@ def get_professionals_cached():
         conn = psycopg2.connect(db_url)
         cursor = conn.cursor()
 
-        # Query Neon for the LATEST single period that overlaps with requested date range
-        # First get the latest end_date within the range, then return all professionals for that period
+        # Query Neon for the BEST MATCHING period for the requested date range
+        # Strategy: Prefer periods with most recent end_date, and prefer the span closest to user's range
         cursor.execute('''
-            SELECT provider_name, cohort, appts_count, capacity, utilization_pct,
+            SELECT DISTINCT ON (provider_name)
+                   provider_name, cohort, appts_count, capacity, utilization_pct,
                    qa_score, improvement_score, improvement_total, status, forecast_7d
             FROM professional_metrics
-            WHERE end_date = (
-                SELECT MAX(end_date)
-                FROM professional_metrics
-                WHERE start_date <= %s AND end_date >= %s
-            )
-            ORDER BY utilization_pct DESC
-        ''', (end_date, start_date))
+            WHERE start_date <= %s AND end_date >= %s
+            ORDER BY provider_name, end_date DESC, ABS((end_date - start_date) - (%s::date - %s::date)) ASC
+        ''', (end_date, start_date, end_date, start_date))
 
         rows = cursor.fetchall()
         cursor.close()
