@@ -1033,34 +1033,30 @@ def get_dashboard():
         conn = psycopg2.connect(db_url)
         cursor = conn.cursor()
 
-        # Get best-matching period per provider based on span similarity
+        # Fetch all overlapping periods and sum appointments for best-matching period
+        # Best match: period with span closest to user's requested span
         from datetime import datetime as dt
         user_span_days = (dt.strptime(e, '%Y-%m-%d') - dt.strptime(s, '%Y-%m-%d')).days
 
+        # Get ONE period per provider: the one with span closest to user's span
         cursor.execute('''
             SELECT provider_name, appts_count, improvement_score,
-                   (end_date - start_date) as period_span
+                   EXTRACT(DAY FROM (end_date - start_date))::INT as period_days
             FROM professional_metrics
             WHERE start_date <= %s AND end_date >= %s
-        ''', (e, s))
+            ORDER BY provider_name,
+                     ABS(EXTRACT(DAY FROM (end_date - start_date))::INT - %s) ASC
+        ''', (e, s, user_span_days))
 
         all_rows = cursor.fetchall()
 
-        # For each provider, pick the period with span closest to user's requested span
-        best_periods = {}
+        # Keep only first occurrence per provider (already sorted by span diff)
+        seen = set()
+        rows = []
         for row in all_rows:
-            provider = row[0]
-            appts = row[1]
-            improvement = row[2]
-            period_span_days = row[3].days if hasattr(row[3], 'days') else row[3]
-
-            span_diff = abs(period_span_days - user_span_days)
-
-            # Select if no prior selection or if this is closer
-            if provider not in best_periods or span_diff < best_periods[provider][3]:
-                best_periods[provider] = (appts, improvement, period_span_days, span_diff)
-
-        rows = [(v[0], v[1]) for v in best_periods.values()]
+            if row[0] not in seen:
+                rows.append((row[1], row[2]))  # (appts_count, improvement_score)
+                seen.add(row[0])
 
         rows = cursor.fetchall()
         cursor.close()
