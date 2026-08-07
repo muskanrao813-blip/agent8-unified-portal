@@ -72,22 +72,33 @@ def export_agent8_direct(backfill=True):
                 logger.warning(f"QA scores unavailable: {e}")
                 qa_scores = {}
 
-            # Query improvements from Agent 8
+            # Query improvements from Managed Care skill (VYTAL programmes)
             improvements = {}
             try:
-                resp = requests.get(
-                    f'http://localhost:5001/api/agent8/dietician-improvement?start_date={chunk_start_str}&end_date={chunk_end_str}',
-                    timeout=10
-                )
-                if resp.status_code == 200:
-                    for item in resp.json().get('data', []):
-                        improvements[item.get('dietician')] = {
-                            'score': item.get('improvement_score', 0),
-                            'improved': item.get('patients_improved', 0),
-                            'total': item.get('patients_total', 0)
-                        }
+                # Query Trino for MC programme biomarker improvements
+                q_improvement = f"""
+                    SELECT
+                        provider,
+                        COUNT(DISTINCT patient_id) as patients_total,
+                        COUNT(DISTINCT CASE WHEN avg_biomarker_improvement > 0 THEN patient_id END) as patients_improved,
+                        AVG(avg_biomarker_improvement) as avg_improvement
+                    FROM hive.managed_care.programme_biomarker_improvements
+                    WHERE appointment_status IN ('COM', 'BOOKED', 'ACT')
+                    AND programme_code IN ('18', '357', '206', '10', '8')
+                    AND appointment_date >= DATE('{chunk_start_str}')
+                    AND appointment_date <= DATE('{chunk_end_str}')
+                    GROUP BY provider
+                """
+                r_improvement = execute_trino_query(q_improvement)
+                for row in r_improvement:
+                    provider = row.get('provider')
+                    improvements[provider] = {
+                        'score': row.get('avg_improvement', 0) or 0,
+                        'improved': row.get('patients_improved', 0) or 0,
+                        'total': row.get('patients_total', 0) or 0
+                    }
             except Exception as e:
-                logger.warning(f"Couldn't load improvements: {e}")
+                logger.warning(f"MC improvements unavailable for chunk {chunk_num}: {e}")
 
             # Calculate for each MC dietician for this chunk
             rows = []
