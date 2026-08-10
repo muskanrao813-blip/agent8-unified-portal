@@ -55,7 +55,7 @@ def get_production_appointments(provider_name, start_date, end_date):
     return 0
 
 def get_production_improvements(provider_name, start_date, end_date):
-    """Get improvement data from production sources"""
+    """Get improvement data from production sources (optional - returns 0 if fails)"""
 
     improvements = {
         'score': 0,
@@ -65,31 +65,42 @@ def get_production_improvements(provider_name, start_date, end_date):
 
     logger.info(f"[IMPROVE] Querying improvements for {provider_name}")
 
-    # Query 1: MC Programme improvements (VYTAL codes)
-    query = f"""
-        SELECT
-            COUNT(DISTINCT patient_id) as total,
-            COUNT(DISTINCT CASE WHEN biomarker_improvement > 0 THEN patient_id END) as improved,
-            AVG(biomarker_improvement) as avg_score
-        FROM managed_care_programme_results
-        WHERE provider = '{provider_name}'
-        AND programme_code IN ('18', '357', '206', '10', '8')
-        AND result_date >= DATE('{start_date}')
-        AND result_date <= DATE('{end_date}')
-    """
+    # Try multiple schema paths for managed_care_programme_results
+    schemas = [
+        "deltalake.dl_standard_pbireporting.managed_care_programme_results",
+        "public.managed_care_programme_results",
+        "default.managed_care_programme_results",
+        "managed_care_programme_results"
+    ]
 
-    try:
-        result = execute_trino_query(query)
-        if result and result[0].get('total'):
-            improvements = {
-                'score': float(result[0].get('avg_score', 0)) or 0,
-                'improved': int(result[0].get('improved', 0)) or 0,
-                'total': int(result[0].get('total', 0)) or 0
-            }
-            logger.info(f"[IMPROVE] {provider_name}: {improvements['improved']}/{improvements['total']} improved, avg={improvements['score']:.1f}")
-    except Exception as e:
-        logger.warning(f"[IMPROVE] Query failed: {str(e)[:100]}")
+    for schema_path in schemas:
+        query = f"""
+            SELECT
+                COUNT(DISTINCT patient_id) as total,
+                COUNT(DISTINCT CASE WHEN biomarker_improvement > 0 THEN patient_id END) as improved,
+                AVG(biomarker_improvement) as avg_score
+            FROM {schema_path}
+            WHERE provider = '{provider_name}'
+            AND programme_code IN ('18', '357', '206', '10', '8')
+            AND result_date >= DATE('{start_date}')
+            AND result_date <= DATE('{end_date}')
+        """
 
+        try:
+            result = execute_trino_query(query)
+            if result and len(result) > 0 and result[0].get('total'):
+                improvements = {
+                    'score': float(result[0].get('avg_score', 0)) or 0,
+                    'improved': int(result[0].get('improved', 0)) or 0,
+                    'total': int(result[0].get('total', 0)) or 0
+                }
+                logger.info(f"[IMPROVE] {provider_name}: {improvements['improved']}/{improvements['total']} improved, avg={improvements['score']:.1f} (schema: {schema_path})")
+                return improvements
+        except Exception as e:
+            logger.debug(f"[IMPROVE] Schema {schema_path} failed: {str(e)[:80]}")
+            continue
+
+    logger.warning(f"[IMPROVE] Could not find improvements for {provider_name} - using defaults")
     return improvements
 
 def export_production_metrics(backfill=True):

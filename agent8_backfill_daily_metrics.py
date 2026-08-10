@@ -43,30 +43,41 @@ def get_daily_appointments(provider_name, date_str):
     return 0
 
 def get_daily_improvements(provider_name, date_str):
-    """Query improvements for a specific date"""
+    """Query improvements for a specific date (optional - returns 0 if fails)"""
     improvements = {'score': 0, 'improved': 0, 'total': 0}
 
-    query = f"""
-        SELECT
-            COUNT(DISTINCT patient_id) as total,
-            COUNT(DISTINCT CASE WHEN biomarker_improvement > 0 THEN patient_id END) as improved,
-            AVG(biomarker_improvement) as avg_score
-        FROM managed_care_programme_results
-        WHERE provider = '{provider_name}'
-        AND programme_code IN ('18', '357', '206', '10', '8')
-        AND result_date = DATE('{date_str}')
-    """
+    # Try multiple schema paths
+    schemas = [
+        "deltalake.dl_standard_pbireporting.managed_care_programme_results",
+        "public.managed_care_programme_results",
+        "default.managed_care_programme_results",
+        "managed_care_programme_results"
+    ]
 
-    try:
-        result = execute_trino_query(query)
-        if result and result[0].get('total'):
-            improvements = {
-                'score': float(result[0].get('avg_score', 0)) or 0,
-                'improved': int(result[0].get('improved', 0)) or 0,
-                'total': int(result[0].get('total', 0)) or 0
-            }
-    except Exception as e:
-        logger.debug(f"[TRINO] No improvements for {provider_name} on {date_str}")
+    for schema_path in schemas:
+        query = f"""
+            SELECT
+                COUNT(DISTINCT patient_id) as total,
+                COUNT(DISTINCT CASE WHEN biomarker_improvement > 0 THEN patient_id END) as improved,
+                AVG(biomarker_improvement) as avg_score
+            FROM {schema_path}
+            WHERE provider = '{provider_name}'
+            AND programme_code IN ('18', '357', '206', '10', '8')
+            AND result_date = DATE('{date_str}')
+        """
+
+        try:
+            result = execute_trino_query(query)
+            if result and len(result) > 0 and result[0].get('total'):
+                improvements = {
+                    'score': float(result[0].get('avg_score', 0)) or 0,
+                    'improved': int(result[0].get('improved', 0)) or 0,
+                    'total': int(result[0].get('total', 0)) or 0
+                }
+                return improvements
+        except Exception as e:
+            logger.debug(f"[TRINO] Schema {schema_path} failed for {date_str}")
+            continue
 
     return improvements
 
