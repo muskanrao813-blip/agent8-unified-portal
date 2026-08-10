@@ -1008,7 +1008,7 @@ def get_recommendations():
 
 @app.route('/api/agent8/dashboard', methods=['GET'])
 def get_dashboard():
-    """Returns KPI metrics from actual data (Neon PostgreSQL)"""
+    """Returns KPI metrics from daily snapshots (Neon PostgreSQL)"""
     from datetime import datetime, timedelta
     import psycopg2
 
@@ -1028,56 +1028,31 @@ def get_dashboard():
 
         total_capacity = capacity_ai + capacity_others + capacity_mc + capacity_contractual
 
-        # Query Neon PostgreSQL directly (like /professionals endpoint)
+        # Query daily metrics from PostgreSQL
         db_url = os.getenv('DATABASE_URL')
         conn = psycopg2.connect(db_url)
         cursor = conn.cursor()
 
-        # SIMPLE & CLEAR: Fetch all overlapping periods, then select best match in Python
-        from datetime import datetime as dt
-        user_span_days = (dt.strptime(e, '%Y-%m-%d') - dt.strptime(s, '%Y-%m-%d')).days
-
-        # Get ALL overlapping periods
+        # Query daily metrics aggregated by date range
         cursor.execute('''
-            SELECT provider_name, appts_count, improvement_score, start_date, end_date
-            FROM professional_metrics
-            WHERE start_date <= %s AND end_date >= %s
-            ORDER BY provider_name, end_date DESC, start_date DESC
-        ''', (e, s))
+            SELECT
+                SUM(appts_count)::INT as total_appts,
+                AVG(improvement_score) as avg_improvement,
+                COUNT(DISTINCT provider_name) as provider_count
+            FROM professional_daily_metrics
+            WHERE metric_date >= %s AND metric_date <= %s
+        ''', (s, e))
 
-        all_periods = cursor.fetchall()
-
-        # For each provider, select the period with span CLOSEST to user's span
-        best_per_provider = {}
-        for row in all_periods:
-            provider = row[0]
-            appts = row[1]
-            improvement = row[2]
-            start = row[3]
-            end = row[4]
-
-            period_span = (end - start).days
-            span_diff = abs(period_span - user_span_days)
-
-            # Select if no prior entry, or if this period is a better match
-            if provider not in best_per_provider:
-                best_per_provider[provider] = (appts, improvement, span_diff)
-            elif span_diff < best_per_provider[provider][2]:
-                best_per_provider[provider] = (appts, improvement, span_diff)
-
-        # Build final rows (use span-matched periods, not raw cursor)
-        rows = [(v[0], v[1]) for v in best_per_provider.values()]
-
+        row = cursor.fetchone()
         cursor.close()
         conn.close()
 
-        # Calculate booked appointments and improvements from actual data
-        booked = sum(row[0] or 0 for row in rows)
-        provider_count = len(rows)
-        improvements = [row[1] for row in rows if row[1] and row[1] > 0]
-        avg_improvement = sum(improvements) / len(improvements) if improvements else 0
+        # Extract results
+        booked = row[0] or 0 if row else 0
+        improvements_list = [row[1]] if row and row[1] and row[1] > 0 else []
+        avg_improvement = improvements_list[0] if improvements_list else 0
 
-        logger.info(f"[DASHBOARD] Actual metrics for {s} to {e}: {booked} appts, {provider_count} pros")
+        logger.info(f"[DASHBOARD] Daily metrics for {s} to {e}: {booked} appts")
 
         util = round((booked / max(total_capacity, 1)) * 100, 1)
         available_slots = max(total_capacity - booked, 0)

@@ -54,6 +54,151 @@ if USE_POSTGRES:
 METRICS_DB_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'metrics_cache.db')
 
 
+def store_professional_daily_metric(provider_name, cohort, metric_date, appts_count, capacity,
+                                   utilization_pct, qa_score, improvement_score, improvement_total,
+                                   status, patient_count, with_lab_data, without_lab_data):
+    """Store daily metric in database (PostgreSQL or SQLite)"""
+
+    if USE_POSTGRES and postgres_conn:
+        try:
+            cursor = postgres_conn.cursor()
+            cursor.execute('''
+                INSERT INTO professional_daily_metrics
+                (provider_name, cohort, metric_date, appts_count, capacity, utilization_pct,
+                 qa_score, improvement_score, improvement_total, status,
+                 patient_count, with_lab_data, without_lab_data)
+                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (provider_name, metric_date) DO UPDATE SET
+                    appts_count=EXCLUDED.appts_count,
+                    capacity=EXCLUDED.capacity,
+                    utilization_pct=EXCLUDED.utilization_pct,
+                    qa_score=EXCLUDED.qa_score,
+                    improvement_score=EXCLUDED.improvement_score,
+                    improvement_total=EXCLUDED.improvement_total,
+                    status=EXCLUDED.status,
+                    patient_count=EXCLUDED.patient_count,
+                    with_lab_data=EXCLUDED.with_lab_data,
+                    without_lab_data=EXCLUDED.without_lab_data
+            ''', (provider_name, cohort, metric_date, appts_count, capacity, utilization_pct,
+                  qa_score, improvement_score, improvement_total, status,
+                  patient_count, with_lab_data, without_lab_data))
+            postgres_conn.commit()
+            cursor.close()
+            return True
+        except Exception as e:
+            logger.error(f"[DB-POSTGRES] Error storing daily metric {provider_name} {metric_date}: {str(e)}")
+            postgres_conn.rollback()
+            return False
+    else:
+        # SQLite fallback
+        try:
+            conn = sqlite3.connect(METRICS_DB_PATH, timeout=60.0)
+            cursor = conn.cursor()
+            cursor.execute('BEGIN IMMEDIATE')
+            cursor.execute('''
+                INSERT OR REPLACE INTO professional_daily_metrics
+                (provider_name, cohort, metric_date, appts_count, capacity, utilization_pct,
+                 qa_score, improvement_score, improvement_total, status,
+                 patient_count, with_lab_data, without_lab_data)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            ''', (provider_name, cohort, metric_date, appts_count, capacity, utilization_pct,
+                  qa_score, improvement_score, improvement_total, status,
+                  patient_count, with_lab_data, without_lab_data))
+            cursor.execute('COMMIT')
+            conn.close()
+            return True
+        except Exception as e:
+            logger.error(f"[DB-SQLITE] Error storing daily metric {provider_name}: {str(e)}")
+            return False
+
+
+def query_daily_metrics_by_range(provider_name, start_date, end_date):
+    """Query daily metrics for a date range and aggregate"""
+
+    if USE_POSTGRES and postgres_conn:
+        try:
+            cursor = postgres_conn.cursor()
+            cursor.execute('''
+                SELECT
+                    provider_name,
+                    cohort,
+                    SUM(appts_count)::INT as total_appts,
+                    AVG(capacity)::INT as avg_capacity,
+                    AVG(utilization_pct) as avg_utilization,
+                    AVG(qa_score) as avg_qa_score,
+                    AVG(improvement_score) as avg_improvement,
+                    SUM(improvement_total)::INT as total_improved,
+                    COUNT(DISTINCT metric_date) as day_count
+                FROM professional_daily_metrics
+                WHERE provider_name = %s
+                  AND metric_date >= %s
+                  AND metric_date <= %s
+                GROUP BY provider_name, cohort
+            ''', (provider_name, start_date, end_date))
+
+            result = cursor.fetchone()
+            cursor.close()
+
+            if result:
+                return {
+                    'provider_name': result[0],
+                    'cohort': result[1],
+                    'appts_count': result[2] or 0,
+                    'capacity': result[3] or 0,
+                    'utilization_pct': round(result[4] or 0, 1),
+                    'qa_score': round(result[5] or 0, 1),
+                    'improvement_score': round(result[6] or 0, 1),
+                    'improvement_total': result[7] or 0,
+                    'days_in_range': result[8] or 0
+                }
+            return None
+        except Exception as e:
+            logger.error(f"[DB-POSTGRES] Query error: {str(e)}")
+            return None
+    else:
+        # SQLite fallback
+        try:
+            conn = sqlite3.connect(METRICS_DB_PATH)
+            cursor = conn.cursor()
+            cursor.execute('''
+                SELECT
+                    provider_name,
+                    cohort,
+                    SUM(appts_count) as total_appts,
+                    AVG(capacity) as avg_capacity,
+                    AVG(utilization_pct) as avg_utilization,
+                    AVG(qa_score) as avg_qa_score,
+                    AVG(improvement_score) as avg_improvement,
+                    SUM(improvement_total) as total_improved,
+                    COUNT(DISTINCT metric_date) as day_count
+                FROM professional_daily_metrics
+                WHERE provider_name = ?
+                  AND metric_date >= ?
+                  AND metric_date <= ?
+                GROUP BY provider_name, cohort
+            ''', (provider_name, start_date, end_date))
+
+            result = cursor.fetchone()
+            conn.close()
+
+            if result:
+                return {
+                    'provider_name': result[0],
+                    'cohort': result[1],
+                    'appts_count': int(result[2] or 0),
+                    'capacity': int(result[3] or 0),
+                    'utilization_pct': round(result[4] or 0, 1),
+                    'qa_score': round(result[5] or 0, 1),
+                    'improvement_score': round(result[6] or 0, 1),
+                    'improvement_total': int(result[7] or 0),
+                    'days_in_range': int(result[8] or 0)
+                }
+            return None
+        except Exception as e:
+            logger.error(f"[DB-SQLITE] Query error: {str(e)}")
+            return None
+
+
 def store_professional_metric(provider_name, cohort, start_date, end_date, appts_count, capacity,
                              utilization_pct, qa_score, improvement_score, improvement_total,
                              status, forecast_7d, patient_count, with_lab_data, without_lab_data):
@@ -293,10 +438,38 @@ def clear_metrics_for_date_range(start_date, end_date):
 
 
 def init_postgres_schema():
-    """Create PostgreSQL table if it doesn't exist"""
+    """Create PostgreSQL tables if they don't exist"""
     if USE_POSTGRES and postgres_conn:
         try:
             cursor = postgres_conn.cursor()
+
+            # New daily metrics table (daily snapshots instead of periods)
+            cursor.execute('''
+                CREATE TABLE IF NOT EXISTS professional_daily_metrics (
+                    id SERIAL PRIMARY KEY,
+                    provider_name TEXT NOT NULL,
+                    cohort TEXT NOT NULL,
+                    metric_date DATE NOT NULL,
+                    appts_count INTEGER DEFAULT 0,
+                    capacity INTEGER DEFAULT 0,
+                    utilization_pct FLOAT DEFAULT 0,
+                    qa_score FLOAT DEFAULT 0,
+                    improvement_score FLOAT DEFAULT 0,
+                    improvement_total INTEGER DEFAULT 0,
+                    status TEXT DEFAULT 'NA',
+                    patient_count INTEGER DEFAULT 0,
+                    with_lab_data INTEGER DEFAULT 0,
+                    without_lab_data INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT NOW(),
+                    UNIQUE(provider_name, metric_date)
+                );
+
+                CREATE INDEX IF NOT EXISTS idx_daily_date ON professional_daily_metrics(metric_date);
+                CREATE INDEX IF NOT EXISTS idx_daily_provider ON professional_daily_metrics(provider_name);
+                CREATE INDEX IF NOT EXISTS idx_daily_provider_date ON professional_daily_metrics(provider_name, metric_date);
+            ''')
+
+            # Keep old table for compatibility (will deprecate later)
             cursor.execute('''
                 CREATE TABLE IF NOT EXISTS professional_metrics (
                     id SERIAL PRIMARY KEY,
@@ -322,9 +495,10 @@ def init_postgres_schema():
                 CREATE INDEX IF NOT EXISTS idx_date_range ON professional_metrics(start_date, end_date);
                 CREATE INDEX IF NOT EXISTS idx_provider ON professional_metrics(provider_name);
             ''')
+
             postgres_conn.commit()
             cursor.close()
-            logger.info("[DB-POSTGRES] Schema initialized")
+            logger.info("[DB-POSTGRES] Schema initialized (daily metrics + legacy periods)")
             return True
         except Exception as e:
             logger.error(f"[DB-POSTGRES] Schema init error: {str(e)}")
