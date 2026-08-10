@@ -1668,17 +1668,18 @@ def get_professionals_cached():
         conn = psycopg.connect(db_url, connect_timeout=10)
         cursor = conn.cursor()
 
+        # Calculate working days for this date range
+        d_inhouse = count_working_days_inhouse(start_date, end_date)
+        d_contractual = count_working_days_contractual(start_date, end_date)
+
         # Query daily metrics and aggregate for date range
         cursor.execute('''
             SELECT
                 provider_name, cohort,
                 SUM(appts_count) as total_appts,
-                SUM(capacity) / COUNT(DISTINCT metric_date) as avg_capacity_per_day,
-                SUM(capacity) as total_capacity,
                 AVG(utilization_pct) as avg_utilization,
                 AVG(qa_score) as avg_qa_score,
                 AVG(improvement_score) as avg_improvement,
-                COUNT(DISTINCT metric_date) as days_covered,
                 MAX(metric_date) as last_update
             FROM professional_daily_metrics
             WHERE metric_date >= %s AND metric_date <= %s
@@ -1690,10 +1691,29 @@ def get_professionals_cached():
         cursor.close()
         conn.close()
 
-        # Convert rows to dicts
+        # Convert rows to dicts with calculated capacity
         professionals = []
         for idx, row in enumerate(rows, 1):
-            provider_name, cohort, appts, avg_cap_day, total_cap, avg_util, qa_score, improvement, days_covered, last_update = row
+            provider_name, cohort, appts, avg_util, qa_score, improvement, last_update = row
+
+            # Calculate capacity based on cohort and working days (NOT from summed daily records)
+            if cohort == 'IN-HOUSE AI':
+                daily_slots = 84
+                working_days = d_inhouse
+            elif cohort == 'IN-HOUSE OTHERS':
+                daily_slots = 14
+                working_days = d_inhouse
+            elif cohort == 'IN-HOUSE MC':
+                daily_slots = 14
+                working_days = d_inhouse
+            elif cohort == 'CONTRACTUAL':
+                daily_slots = 22
+                working_days = d_contractual
+            else:
+                daily_slots = 22
+                working_days = d_contractual
+
+            total_cap = daily_slots * working_days
 
             # Calculate utilization percentage
             util_pct = (appts / total_cap * 100) if total_cap > 0 else 0
