@@ -14,6 +14,10 @@ from dotenv import load_dotenv
 from trino.dbapi import connect
 from trino.auth import BasicAuthentication
 import sqlite3
+try:
+    import psycopg
+except ImportError:
+    psycopg = None
 from db_layer import store_professional_metric, query_professional_metrics, clear_metrics_for_date_range, init_postgres_schema, USE_POSTGRES
 
 # Load .env from project root directory
@@ -1006,6 +1010,77 @@ def get_recommendations():
 
     return jsonify(recommendations)
 
+
+def get_managed_care_program_breakdown():
+    """Fetch Managed Care program metrics from shared Neon PostgreSQL"""
+    try:
+        if not USE_POSTGRES or not psycopg:
+            return []
+
+        conn = psycopg.connect(os.getenv('DATABASE_URL'), connect_timeout=10)
+        cursor = conn.cursor()
+
+        # Query HRA stats
+        cursor.execute("""
+            SELECT metric, value FROM managed_care.hra_stats
+            WHERE metric IN ('enrolled_with_hra', 'completed_hra')
+        """)
+        hra_data = {row[0]: row[1] for row in cursor.fetchall()}
+
+        # Query VYTAL appointments since June
+        cursor.execute("""
+            SELECT
+                COUNT(*) as total_appts,
+                COUNT(DISTINCT phr_id) as unique_patients
+            FROM managed_care.vytal_appt_flat
+            WHERE appt_date_dt >= '2026-06-01'
+        """)
+        appt_result = cursor.fetchone()
+        appts_since_june = appt_result[0] if appt_result else 0
+        appt_patients = appt_result[1] if appt_result else 0
+
+        # Query impact scores (biomarker data)
+        cursor.execute("""
+            SELECT
+                COUNT(DISTINCT mobile_number_hash) as patients_with_impact,
+                AVG(scaled_score) as avg_improvement
+            FROM managed_care.impact_scores_2026
+        """)
+        impact_result = cursor.fetchone()
+        patients_with_impact = impact_result[0] if impact_result else 0
+        avg_improvement = impact_result[1] if impact_result else 0
+
+        # Query camp participation
+        cursor.execute("""
+            SELECT COUNT(DISTINCT mobile_number_hash)
+            FROM managed_care.camp_phrs
+        """)
+        camp_result = cursor.fetchone()
+        camp_participants = camp_result[0] if camp_result else 0
+
+        cursor.close()
+        conn.close()
+
+        # Build program breakdown array
+        program_breakdown = [
+            {
+                'name': 'VYTAL Health Program',
+                'metrics': [
+                    {'label': 'Total Enrolled', 'value': f'{camp_participants:,}', 'unit': 'patients'},
+                    {'label': 'HRA Data Available', 'value': f'{hra_data.get("enrolled_with_hra", 0)}/504', 'unit': 'completed'},
+                    {'label': 'Biomarker Data', 'value': f'{patients_with_impact:,}', 'unit': f'{avg_improvement:.1f}% improvement'},
+                    {'label': 'With Appointments', 'value': f'{appt_patients:,}', 'unit': f'{(appt_patients/camp_participants)*100 if camp_participants else 0:.1f}% booked'}
+                ]
+            }
+        ]
+
+        return program_breakdown
+
+    except Exception as e:
+        logger.error(f"[MC-METRICS] Error fetching program breakdown: {str(e)}")
+        return []
+
+
 @app.route('/api/agent8/dashboard', methods=['GET'])
 def get_dashboard():
     """Returns KPI metrics from daily snapshots (Neon PostgreSQL)"""
@@ -1063,7 +1138,7 @@ def get_dashboard():
             {'label': 'Booked Appointments', 'value': f'{booked:,}', 'status': 'GOOD', 'trend': '0%', 'comparison': f'Target: {target:,}', 'benchmark': str(target)},
             {'label': 'Total Capacity', 'value': f'{total_capacity:,}', 'status': 'OPTIMAL', 'available_slots': available_slots, 'comparison': f'{available_slots:,} slots', 'benchmark': str(total_capacity)},
             {'label': 'Avg Health Improvement', 'value': f'{round(avg_improvement, 1)}%', 'status': 'GOOD', 'trend': '±0%', 'comparison': 'Clinical gain rate', 'benchmark': '15%'}
-        ], 'program_breakdown': []})
+        ], 'program_breakdown': get_managed_care_program_breakdown()})
 
     except Exception as e:
         logger.error(f"[DASHBOARD] Error: {str(e)}")
@@ -1099,9 +1174,17 @@ def proxy_bulk_upload():
             return jsonify({'error': 'No file provided'}), 400
 
         files = {'file': request.files['file']}
-        response = requests.post(f'{DIETICIAN_QA_BACKEND}/api/calls/bulk-upload', files=files)
+        logger.info(f"[UPLOAD] Uploading to {DIETICIAN_QA_BACKEND}/api/calls/bulk-upload")
+        # Disable SSL verification for Render API (development mode)
+        response = requests.post(f'{DIETICIAN_QA_BACKEND}/api/calls/bulk-upload',
+                               files=files, timeout=30, verify=False)
+        logger.info(f"[UPLOAD] Response status: {response.status_code}")
         return jsonify(response.json())
+    except requests.exceptions.Timeout:
+        logger.error("[UPLOAD] Upload timeout")
+        return jsonify({'error': 'Upload timeout - API not responding'}), 504
     except Exception as e:
+        logger.error(f"[UPLOAD] Error: {str(e)}")
         return jsonify({'error': str(e)}), 500
 
 # ============================================================================
@@ -1111,165 +1194,171 @@ def proxy_bulk_upload():
 @app.route('/api/agent8/health-outcomes', methods=['GET'])
 def get_health_outcomes():
     """
-    Clinical outcomes data - reads from PostgreSQL (synced from Trino)
+    Health outcomes data - aggregated from daily metrics by date range
     """
     from datetime import datetime, timedelta
 
     end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
     start_date = request.args.get('start_date', (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
 
-    logger.info(f"[HEALTH-OUTCOMES] Fetching data from PostgreSQL: {start_date} to {end_date}")
+    logger.info(f"[HEALTH-OUTCOMES] Fetching aggregated daily metrics: {start_date} to {end_date}")
 
     try:
+        if not USE_POSTGRES or not psycopg:
+            return jsonify({
+                'status': 'error',
+                'message': 'PostgreSQL not configured',
+                'kpis': []
+            }), 500
+
         conn = psycopg.connect(os.getenv('DATABASE_URL'), connect_timeout=10)
         cursor = conn.cursor()
 
+        # Query aggregated daily metrics for date range
         cursor.execute('''
-            SELECT dietician_name, 'IN-HOUSE MC' as cohort,
-                   COALESCE(total_appointments, 0) as patient_count,
-                   COALESCE(completed_appointments, 0) as with_lab_data,
-                   COALESCE(total_appointments - completed_appointments, 0) as without_lab_data,
-                   CASE WHEN total_appointments > 0
-                        THEN ROUND(100.0 * completed_appointments / total_appointments, 1)
-                        ELSE 0 END as lab_data_pct
-            FROM provider_metrics
-            ORDER BY total_appointments DESC LIMIT 25
-        ''')
+            SELECT
+                provider_name,
+                cohort,
+                SUM(appts_count) as total_appts,
+                COUNT(DISTINCT metric_date) as days_covered,
+                AVG(utilization_pct) as avg_utilization
+            FROM professional_daily_metrics
+            WHERE metric_date >= %s AND metric_date <= %s
+            GROUP BY provider_name, cohort
+            ORDER BY total_appts DESC
+        ''', (start_date, end_date))
 
         rows = cursor.fetchall()
         cursor.close()
         conn.close()
 
-        data = [dict(zip(['dietician', 'cohort', 'patient_count', 'with_lab_data', 'without_lab_data', 'lab_data_pct'], row)) for row in rows]
-
-        return jsonify({
-            'start_date': start_date,
-            'end_date': end_date,
-            'data': data if data else [],
-            'message': 'Real data from PostgreSQL' if data else 'No data synced yet. Run sync_data_from_trino.py'
-        }), 200
-
-        # Query cached professional_metrics table (only columns that are populated)
-        cursor.execute('''
-            SELECT
-                provider_name as doctorname, cohort, appts_count, capacity, utilization_pct,
-                improvement_score, improvement_total, qa_score, status, forecast_7d,
-                COALESCE(patient_count, 0) as patient_count,
-                COALESCE(with_lab_data, 0) as with_lab_data,
-                COALESCE(without_lab_data, 0) as without_lab_data
-            FROM professional_metrics
-            WHERE start_date = ? AND end_date = ?
-            ORDER BY utilization_pct DESC
-        ''', (start_date, end_date))
-
-        rows = cursor.fetchall()
-        conn.close()
-
         if rows:
             results = []
-            for row in rows:
-                dietician_name = row[0]
-                cohort = row[1]
-                patient_count = row[10]  # Use cached values - no Trino queries
-                with_lab = row[11]
-                without_lab = row[12]
-                lab_data_pct = round(with_lab / (patient_count + without_lab) * 100, 1) if (patient_count + without_lab) > 0 else 0
-
+            total_appts = 0
+            for provider_name, cohort, appts, days, avg_util in rows:
+                total_appts += appts
                 results.append({
-                    'dietician': dietician_name,
+                    'provider': provider_name,
                     'cohort': cohort,
-                    'patient_count': patient_count,
-                    'with_lab_data': with_lab,
-                    'without_lab_data': without_lab,
-                    'lab_data_pct': lab_data_pct
+                    'appointments': appts,
+                    'days_covered': days,
+                    'avg_utilization': round(avg_util, 1) if avg_util else 0
                 })
 
-            # Calculate KPIs
-            total_patients = sum(r['patient_count'] for r in results)
-            total_with_lab = sum(r['with_lab_data'] for r in results)
-            lab_data_pct = round((total_with_lab / total_patients * 100), 1) if total_patients > 0 else 0
-
-            logger.info(f"[HEALTH-OUTCOMES] Trino query: {total_patients} total patients, {total_with_lab} with lab data")
-
-            logger.info(f"[HEALTH-OUTCOMES] SUCCESS: {len(results)} providers from cache")
             return jsonify({
                 'status': 'success',
+                'start_date': start_date,
+                'end_date': end_date,
                 'data': results,
-                'date_range': {'start_date': start_date, 'end_date': end_date},
                 'kpis': [
-                    {'label': 'Total Patients', 'value': str(total_patients), 'unit': 'patients'},
-                    {'label': 'Lab Data Available', 'value': f'{lab_data_pct}%'},
-                    {'label': 'MC Dieticians', 'value': str(len(results)), 'unit': 'providers'},
+                    {'label': 'Total Appointments', 'value': str(total_appts)},
+                    {'label': 'MC Dieticians', 'value': str(len(results))},
+                    {'label': 'Avg Utilization', 'value': f"{sum(r['avg_utilization'] for r in results) / len(results):.1f}%" if results else '0%'},
                 ]
-            })
+            }), 200
         else:
-            # No cached data - trigger automatic batch calculation for this date range
-            logger.info(f"[HEALTH-OUTCOMES] No cached data for {start_date} to {end_date} - triggering batch calculation")
-            conn.close()
-
-            # Calculate metrics for this date range
-            calc_result = calculate_and_store_metrics(start_date, end_date)
-
-            if calc_result.get('status') != 'success':
-                logger.warning(f"[HEALTH-OUTCOMES] Calculation failed: {calc_result}")
-                return jsonify({
-                    'status': 'error',
-                    'message': f'Could not calculate metrics for {start_date} to {end_date}',
-                    'kpis': []
-                }), 500
-
-            # Query the newly calculated data
-            rows = query_professional_metrics(start_date, end_date)
-
-            if rows:
-                results = []
-                for row in rows:
-                    dietician_name = row.get('provider_name')
-                    cohort = row.get('cohort')
-                    patient_count = row.get('patient_count', 0)
-                    with_lab = row.get('with_lab_data', 0)
-                    without_lab = row.get('without_lab_data', 0)
-                    lab_data_pct = round(with_lab / max(patient_count + without_lab, 1) * 100, 1)
-
-                    results.append({
-                        'dietician': dietician_name,
-                        'cohort': cohort,
-                        'patient_count': patient_count,
-                        'with_lab_data': with_lab,
-                        'without_lab_data': without_lab,
-                        'lab_data_pct': lab_data_pct
-                    })
-
-                total_patients = sum(r['patient_count'] for r in results)
-                total_with_lab = sum(r['with_lab_data'] for r in results)
-                lab_data_pct = round((total_with_lab / total_patients * 100), 1) if total_patients > 0 else 0
-
-                logger.info(f"[HEALTH-OUTCOMES] Trino query (fallback): {total_patients} total patients, {total_with_lab} with lab data")
-
-                logger.info(f"[HEALTH-OUTCOMES] Calculated and returning {len(results)} providers")
-                return jsonify({
-                    'status': 'success',
-                    'data': results,
-                    'date_range': {'start_date': start_date, 'end_date': end_date},
-                    'kpis': [
-                        {'label': 'Total Patients', 'value': str(total_patients), 'unit': 'patients'},
-                        {'label': 'Lab Data Available', 'value': f'{lab_data_pct}%'},
-                        {'label': 'MC Dieticians', 'value': str(len(results)), 'unit': 'providers'},
-                    ]
-                })
-
             return jsonify({
                 'status': 'error',
-                'message': f'Calculation completed but no data retrieved for {start_date} to {end_date}',
+                'message': f'No data found for {start_date} to {end_date}',
                 'kpis': []
-            }), 500
+            }), 404
 
     except Exception as e:
         logger.error(f"[HEALTH-OUTCOMES] ERROR: {str(e)}")
         return jsonify({
             'status': 'error',
             'message': str(e),
-            'suggestion': 'Try POST /api/agent8/batch-calculate first'
+            'kpis': []
+        }), 500
+
+
+@app.route('/api/agent8/clinical-outcomes', methods=['GET'])
+def get_clinical_outcomes():
+    """
+    Clinical outcomes data - health improvement metrics by dietician for date range
+    """
+    from datetime import datetime, timedelta
+
+    end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
+    start_date = request.args.get('start_date', (datetime.now() - timedelta(days=30)).strftime('%Y-%m-%d'))
+
+    logger.info(f"[CLINICAL-OUTCOMES] Fetching data: {start_date} to {end_date}")
+
+    try:
+        if not USE_POSTGRES or not psycopg:
+            return jsonify({
+                'status': 'error',
+                'message': 'PostgreSQL not configured',
+                'kpis': []
+            }), 500
+
+        conn = psycopg.connect(os.getenv('DATABASE_URL'), connect_timeout=10)
+        cursor = conn.cursor()
+
+        # Query health outcomes by dietician
+        cursor.execute('''
+            SELECT
+                provider_name,
+                cohort,
+                COUNT(DISTINCT metric_date) as days_covered,
+                SUM(appts_count) as total_appointments,
+                AVG(utilization_pct) as avg_utilization,
+                AVG(qa_score) as avg_qa_score
+            FROM professional_daily_metrics
+            WHERE metric_date >= %s AND metric_date <= %s
+            GROUP BY provider_name, cohort
+            ORDER BY total_appointments DESC
+        ''', (start_date, end_date))
+
+        rows = cursor.fetchall()
+        cursor.close()
+        conn.close()
+
+        if rows:
+            results = []
+            for provider_name, cohort, days, appts, avg_util, avg_qa in rows:
+                results.append({
+                    'provider': provider_name,
+                    'cohort': cohort,
+                    'days_covered': days,
+                    'appointments': appts,
+                    'avg_utilization': round(avg_util, 1) if avg_util else 0,
+                    'avg_qa_score': round(avg_qa, 1) if avg_qa else 0
+                })
+
+            avg_utilization = sum(r['avg_utilization'] for r in results) / len(results) if results else 0
+            total_appointments = sum(r['appointments'] for r in results)
+
+            return jsonify({
+                'status': 'success',
+                'start_date': start_date,
+                'end_date': end_date,
+                'data': results,
+                'kpis': [
+                    {'label': 'Total Appointments', 'value': str(total_appointments)},
+                    {'label': 'Avg Utilization', 'value': f'{avg_utilization:.1f}%'},
+                    {'label': 'Providers', 'value': str(len(results))},
+                ]
+            }), 200
+        else:
+            return jsonify({
+                'status': 'success',
+                'start_date': start_date,
+                'end_date': end_date,
+                'data': [],
+                'kpis': [
+                    {'label': 'Total Appointments', 'value': '0'},
+                    {'label': 'Avg Utilization', 'value': '0%'},
+                    {'label': 'Providers', 'value': '0'},
+                ]
+            }), 200
+
+    except Exception as e:
+        logger.error(f"[CLINICAL-OUTCOMES] ERROR: {str(e)}")
+        return jsonify({
+            'status': 'error',
+            'message': str(e),
+            'kpis': []
         }), 500
 
 
@@ -1560,9 +1649,8 @@ def server_error(e):
 # READ CACHED METRICS (INSTANT - no calculations)
 @app.route('/api/agent8/professionals', methods=['GET'])
 def get_professionals_cached():
-    """Returns pre-calculated professional metrics from Neon"""
+    """Returns aggregated professional metrics from daily snapshots"""
     from datetime import datetime
-    import psycopg2
 
     start_date = request.args.get('start_date', '2026-07-01')
     end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
@@ -1573,19 +1661,26 @@ def get_professionals_cached():
         if not db_url:
             return jsonify({'error': 'DATABASE_URL not configured', 'data': []}), 500
 
-        conn = psycopg2.connect(db_url)
+        conn = psycopg.connect(db_url, connect_timeout=10)
         cursor = conn.cursor()
 
-        # Query Neon for the BEST MATCHING period for the requested date range
-        # Strategy: Prefer periods with most recent end_date, and prefer the span closest to user's range
+        # Query daily metrics and aggregate for date range
         cursor.execute('''
-            SELECT DISTINCT ON (provider_name)
-                   provider_name, cohort, appts_count, capacity, utilization_pct,
-                   qa_score, improvement_score, improvement_total, status, forecast_7d
-            FROM professional_metrics
-            WHERE start_date <= %s AND end_date >= %s
-            ORDER BY provider_name, end_date DESC, ABS((end_date - start_date) - (%s::date - %s::date)) ASC
-        ''', (end_date, start_date, end_date, start_date))
+            SELECT
+                provider_name, cohort,
+                SUM(appts_count) as total_appts,
+                SUM(capacity) / COUNT(DISTINCT metric_date) as avg_capacity_per_day,
+                SUM(capacity) as total_capacity,
+                AVG(utilization_pct) as avg_utilization,
+                AVG(qa_score) as avg_qa_score,
+                AVG(improvement_score) as avg_improvement,
+                COUNT(DISTINCT metric_date) as days_covered,
+                MAX(metric_date) as last_update
+            FROM professional_daily_metrics
+            WHERE metric_date >= %s AND metric_date <= %s
+            GROUP BY provider_name, cohort
+            ORDER BY total_appts DESC
+        ''', (start_date, end_date))
 
         rows = cursor.fetchall()
         cursor.close()
@@ -1593,26 +1688,28 @@ def get_professionals_cached():
 
         # Convert rows to dicts
         professionals = []
-        col_names = ['provider_name', 'cohort', 'appts_count', 'capacity', 'utilization_pct',
-                     'qa_score', 'improvement_score', 'improvement_total', 'status', 'forecast_7d']
-
         for idx, row in enumerate(rows, 1):
+            provider_name, cohort, appts, avg_cap_day, total_cap, avg_util, qa_score, improvement, days_covered, last_update = row
+
+            # Calculate utilization percentage
+            util_pct = (appts / total_cap * 100) if total_cap > 0 else 0
+
             prof_dict = {
                 'rank': str(idx).zfill(2),
-                'provider_name': row[0],
-                'cohort': row[1],
-                'appts_count': row[2],
-                'capacity': row[3],
-                'utilization_pct': row[4],
-                'qa_score': row[5],
-                'improvement_score': row[6],
-                'improvement_total': row[7],
-                'status': row[8],
-                'forecast_7d': row[9]
+                'provider_name': provider_name,
+                'cohort': cohort,
+                'appts_count': int(appts) if appts else 0,
+                'capacity': int(total_cap) if total_cap else 0,
+                'utilization_pct': round(util_pct, 1),
+                'qa_score': round(qa_score, 1) if qa_score else 0,
+                'improvement_score': round(improvement, 1) if improvement else 0,
+                'improvement_total': round(improvement, 1) if improvement else 0,
+                'status': 'OPTIMAL' if util_pct < 20 else 'CRITICAL' if util_pct > 100 else 'HIGH' if util_pct > 85 else 'GOOD',
+                'forecast_7d': 0  # Will populate with forecasting logic later
             }
             professionals.append(prof_dict)
 
-        logger.info(f"[PROFESSIONALS] Returned {len(professionals)} professionals")
+        logger.info(f"[PROFESSIONALS] Returned {len(professionals)} professionals from daily metrics")
         return jsonify({'data': professionals, 'count': len(professionals)})
 
     except Exception as e:
@@ -3637,12 +3734,18 @@ def qa_bulk_upload():
         qa_api_url = "https://consultation-call-quality-analysis-system.onrender.com"
         try:
             files = {'file': request.files['file']}
+            # Disable SSL verification for Render API (development mode)
             response = requests.post(f"{qa_api_url}/api/calls/bulk-upload",
-                                   files=files, timeout=30)
+                                   files=files, timeout=30, verify=False)
             if response.status_code in [200, 201]:
                 return jsonify(response.json())
-        except:
-            pass
+            else:
+                logger.warning(f"[QA-UPLOAD] Render API returned {response.status_code}")
+        except requests.exceptions.Timeout:
+            return jsonify({'error': 'Upload timeout - API not responding'}), 504
+        except Exception as e:
+            logger.error(f"[QA-UPLOAD] Proxy error: {str(e)}")
+            return jsonify({'error': f'Upload failed: {str(e)}'}), 500
 
         # Return success response for development
         return jsonify({'valid_rows': 0, 'invalid_rows': 0})

@@ -6,7 +6,7 @@ Prachi More, Ambika Rode, Geeta Maggu
 import sys
 sys.path.insert(0, '.')
 
-from app import execute_trino_query, PROVIDER_CAPACITY, PROVIDER_CAPACITY_OVERRIDE, get_cohort_for_provider, calculate_rubric_status, count_working_days_inhouse, count_working_days_contractual
+from app import execute_trino_query, PROVIDER_CAPACITY, PROVIDER_CAPACITY_OVERRIDE, get_cohort_for_provider, calculate_rubric_status, count_working_days_inhouse, count_working_days_contractual, MC_DIETICIANS
 from db_layer import store_professional_daily_metric, init_postgres_schema
 import logging
 from datetime import datetime
