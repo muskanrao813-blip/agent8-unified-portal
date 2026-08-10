@@ -98,10 +98,13 @@ def export_production_metrics(backfill=True):
     end_date = datetime.now()
     all_rows = []
 
-    # Define periods to export
+    # Define periods to export (multiple ranges so date selection returns DIFFERENT data)
     periods = [
         {'name': 'Full Backfill', 'start': datetime(2024, 1, 1), 'end': end_date},
-        {'name': 'Recent 23 Days', 'start': end_date - timedelta(days=23), 'end': end_date},
+        {'name': 'Last 90 Days', 'start': end_date - timedelta(days=90), 'end': end_date},
+        {'name': 'Last 60 Days', 'start': end_date - timedelta(days=60), 'end': end_date},
+        {'name': 'Last 30 Days', 'start': end_date - timedelta(days=30), 'end': end_date},
+        {'name': 'Last 7 Days', 'start': end_date - timedelta(days=7), 'end': end_date},
     ]
 
     logger.info("=" * 80)
