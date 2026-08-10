@@ -1656,6 +1656,10 @@ def get_professionals_cached():
     end_date = request.args.get('end_date', datetime.now().strftime('%Y-%m-%d'))
 
     try:
+        # Check if psycopg is available
+        if not psycopg:
+            return jsonify({'error': 'PostgreSQL driver not available', 'data': []}), 500
+
         # Connect directly to Neon
         db_url = os.getenv('DATABASE_URL')
         if not db_url:
@@ -1713,10 +1717,11 @@ def get_professionals_cached():
         return jsonify({'data': professionals, 'count': len(professionals)})
 
     except Exception as e:
-        logger.error(f"[PROFESSIONALS] Error: {str(e)}")
         import traceback
-        logger.error(traceback.format_exc())
-        return jsonify({'error': str(e), 'data': []}), 500
+        error_msg = f"[PROFESSIONALS] Error: {str(e)}\n{traceback.format_exc()}"
+        logger.error(error_msg)
+        print(error_msg)  # Also print to stdout for Render logs
+        return jsonify({'error': str(e), 'message': 'See server logs for details', 'data': []}), 500
 
 # COHORT PERFORMANCE ENDPOINT
 @app.route('/api/agent8/cohort-performance', methods=['GET'])
