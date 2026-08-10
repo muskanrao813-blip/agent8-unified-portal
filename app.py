@@ -1065,10 +1065,9 @@ def get_dashboard():
             elif span_diff < best_per_provider[provider][2]:
                 best_per_provider[provider] = (appts, improvement, span_diff)
 
-        # Build final rows
+        # Build final rows (use span-matched periods, not raw cursor)
         rows = [(v[0], v[1]) for v in best_per_provider.values()]
 
-        rows = cursor.fetchall()
         cursor.close()
         conn.close()
 
