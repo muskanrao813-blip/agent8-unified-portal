@@ -18,7 +18,8 @@ export default function ProfilePanel({ name, onClose, providerData }) {
     // Fetch professional data from backend
     const fetchProfileData = async () => {
       try {
-        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/agent8/professionals`);
+        const baseUrl = process.env.REACT_APP_API_URL || 'http://localhost:5001/api/agent8';
+        const response = await fetch(`${baseUrl}/professionals`);
         if (response.ok) {
           const data = await response.json();
           const prof = data.data?.find(p => p.provider_name === name);
