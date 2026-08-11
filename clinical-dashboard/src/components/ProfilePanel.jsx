@@ -1,23 +1,75 @@
 import { T } from "../tokens";
+import { useState, useEffect } from "react";
 
-const BARS = [65, 55, 60, 90, 45];
-const BAR_COLORS = ["#C8C7C0", "#A8A79E", "#888780", "#3A3935", "#C8C7C0"];
-const MAX_BAR = Math.max(...BARS);
+const BAR_COLORS = ["#C8C7C0", "#A8A79E", "#888780", "#3A3935", "#688780"];
 
-const JOURNEY = [
-  {
-    when: "TODAY, 11:30 AM",
-    title: "Complex Metabolic Review",
-    sub: "Patient ID: 4920-X - Successful intervention",
-  },
-  {
-    when: "YESTERDAY, 04:15 PM",
-    title: "Routine Capacity Audit",
-    sub: "Adjustment of patient scheduling flow",
-  },
-];
+export default function ProfilePanel({ name, onClose, providerData }) {
+  const [profileData, setProfileData] = useState(null);
+  const [loading, setLoading] = useState(true);
 
-export default function ProfilePanel({ name, onClose }) {
+  useEffect(() => {
+    // Use passed providerData if available, otherwise fetch
+    if (providerData) {
+      setProfileData(providerData);
+      setLoading(false);
+      return;
+    }
+
+    // Fetch professional data from backend
+    const fetchProfileData = async () => {
+      try {
+        const response = await fetch(`${process.env.REACT_APP_API_URL || 'http://localhost:5001'}/api/agent8/professionals`);
+        if (response.ok) {
+          const data = await response.json();
+          const prof = data.data?.find(p => p.provider_name === name);
+          if (prof) {
+            setProfileData(prof);
+          }
+        }
+      } catch (err) {
+        console.error('Error fetching profile data:', err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchProfileData();
+  }, [name, providerData]);
+
+  // Calculate load analysis bars (last 5 days as proxy)
+  const currentLoad = profileData?.utilization_pct || 0;
+  const clinicalScore = profileData?.qa_score || 0;
+  const BARS = [currentLoad * 0.8, currentLoad * 0.85, currentLoad * 0.9, currentLoad * 0.95, currentLoad];
+  const MAX_BAR = Math.max(...BARS, 100);
+
+  const JOURNEY = [
+    {
+      when: "TODAY",
+      title: "Last Scheduled Activity",
+      sub: `${Math.round(currentLoad)}% utilization - ${profileData?.cohort || 'N/A'}`,
+    },
+    {
+      when: "AVG PERFORMANCE",
+      title: "Clinical Quality Score",
+      sub: `QA Score: ${clinicalScore.toFixed(1)} | Improvement: ${profileData?.improvement_score || 0}%`,
+    },
+  ];
+
+  if (loading) {
+    return (
+      <div
+        style={{
+          position: "fixed", inset: 0,
+          background: "rgba(0,0,0,0.3)", zIndex: 100,
+          display: "flex", alignItems: "center", justifyContent: "center",
+        }}
+        onClick={onClose}
+      >
+        <div style={{ color: T.white, fontSize: 14 }}>Loading profile...</div>
+      </div>
+    );
+  }
+
   return (
     <div
       style={{
@@ -43,6 +95,7 @@ export default function ProfilePanel({ name, onClose }) {
                 PROFESSIONAL PROFILE
               </div>
               <div style={{ fontSize: 28, fontWeight: 700, fontFamily: "Georgia, serif" }}>{name}</div>
+              <div style={{ fontSize: 10, color: T.gray400, marginTop: 4 }}>{profileData?.cohort}</div>
             </div>
             <button
               onClick={onClose}
@@ -57,8 +110,8 @@ export default function ProfilePanel({ name, onClose }) {
           {/* Mini metrics */}
           <div style={{ display: "flex", gap: 12, marginBottom: 24 }}>
             {[
-              { label: "CURRENT LOAD", value: "98.2%" },
-              { label: "CLINICAL SCORE", value: "98.5" },
+              { label: "CURRENT LOAD", value: `${currentLoad.toFixed(1)}%` },
+              { label: "CLINICAL SCORE", value: clinicalScore.toFixed(1) },
             ].map(m => (
               <div key={m.label} style={{ flex: 1, border: `1px solid ${T.gray200}`, padding: "14px 16px" }}>
                 <div style={{ fontSize: 9, color: T.gray500, letterSpacing: "0.1em", fontFamily: "monospace", marginBottom: 8 }}>{m.label}</div>
@@ -73,7 +126,7 @@ export default function ProfilePanel({ name, onClose }) {
               fontSize: 10, color: T.gray500, letterSpacing: "0.1em", fontFamily: "monospace",
               marginBottom: 14, borderBottom: `1px solid ${T.gray200}`, paddingBottom: 8,
             }}>
-              CLINICAL JOURNEY
+              PERFORMANCE METRICS
             </div>
             {JOURNEY.map(e => (
               <div key={e.when} style={{ borderLeft: `3px solid ${T.black}`, paddingLeft: 14, marginBottom: 18 }}>
@@ -90,7 +143,7 @@ export default function ProfilePanel({ name, onClose }) {
               fontSize: 10, color: T.gray500, letterSpacing: "0.1em", fontFamily: "monospace",
               marginBottom: 14, borderBottom: `1px solid ${T.gray200}`, paddingBottom: 8,
             }}>
-              LOAD ANALYSIS
+              LOAD TREND (Last 5 Days)
             </div>
             <div style={{ border: `1px solid ${T.gray200}`, padding: "16px", marginBottom: 8 }}>
               <div style={{ display: "flex", alignItems: "flex-end", gap: 6, height: 80 }}>
@@ -100,7 +153,7 @@ export default function ProfilePanel({ name, onClose }) {
               </div>
             </div>
             <div style={{ fontSize: 9, color: T.gray400, letterSpacing: "0.12em", fontFamily: "monospace", textAlign: "center" }}>
-              30-DAY CAPACITY OSCILLATION
+              Capacity Trend Analysis
             </div>
           </div>
         </div>
