@@ -1289,13 +1289,14 @@ def get_clinical_outcomes():
             return jsonify({
                 'status': 'error',
                 'message': 'PostgreSQL not configured',
-                'kpis': []
+                'professionals': [],
+                'kpis': {}
             }), 500
 
         conn = psycopg.connect(os.getenv('DATABASE_URL'), connect_timeout=10)
         cursor = conn.cursor()
 
-        # Query health outcomes by dietician
+        # Query professional metrics with improvement scores
         cursor.execute('''
             SELECT
                 provider_name,
@@ -1303,7 +1304,9 @@ def get_clinical_outcomes():
                 COUNT(DISTINCT metric_date) as days_covered,
                 SUM(appts_count) as total_appointments,
                 AVG(utilization_pct) as avg_utilization,
-                AVG(qa_score) as avg_qa_score
+                AVG(qa_score) as avg_qa_score,
+                AVG(improvement_score) as avg_improvement,
+                COUNT(CASE WHEN with_lab_data > 0 THEN 1 END) as days_with_lab
             FROM professional_daily_metrics
             WHERE metric_date >= %s AND metric_date <= %s
             GROUP BY provider_name, cohort
@@ -1311,46 +1314,68 @@ def get_clinical_outcomes():
         ''', (start_date, end_date))
 
         rows = cursor.fetchall()
+
+        # Get total patient and lab data stats
+        cursor.execute('''
+            SELECT
+                SUM(patient_count) as total_patients,
+                SUM(with_lab_data) as patients_with_lab,
+                AVG(improvement_score) as avg_improvement,
+                COUNT(DISTINCT provider_name) as num_providers
+            FROM professional_daily_metrics
+            WHERE metric_date >= %s AND metric_date <= %s
+        ''', (start_date, end_date))
+
+        stats = cursor.fetchone()
         cursor.close()
         conn.close()
 
         if rows:
             results = []
-            for provider_name, cohort, days, appts, avg_util, avg_qa in rows:
+            rank = 1
+            for provider_name, cohort, days, appts, avg_util, avg_qa, avg_improvement, days_with_lab in rows:
                 results.append({
-                    'provider': provider_name,
+                    'rank': rank,
+                    'provider_name': provider_name,
                     'cohort': cohort,
-                    'days_covered': days,
-                    'appointments': appts,
-                    'avg_utilization': round(avg_util, 1) if avg_util else 0,
-                    'avg_qa_score': round(avg_qa, 1) if avg_qa else 0
+                    'patient_count': appts,  # Using appointments as proxy for patient count
+                    'improvement_score': round(avg_improvement, 1) if avg_improvement and avg_improvement > 0 else 0,
+                    'improvement_pct': f"{round(avg_improvement, 1) if avg_improvement and avg_improvement > 0 else 0}%",
+                    'sample_size': days,
+                    'days_with_lab': days_with_lab if days_with_lab else 0
                 })
+                rank += 1
 
-            avg_utilization = sum(r['avg_utilization'] for r in results) / len(results) if results else 0
-            total_appointments = sum(r['appointments'] for r in results)
+            total_patients = stats[0] if stats[0] else 0
+            patients_with_lab = stats[1] if stats[1] else 0
+            avg_improvement = stats[2] if stats[2] and stats[2] > 0 else 0
+            num_providers = stats[3] if stats[3] else 0
+            lab_data_pct = (patients_with_lab / total_patients * 100) if total_patients > 0 else 0
 
             return jsonify({
                 'status': 'success',
                 'start_date': start_date,
                 'end_date': end_date,
-                'data': results,
-                'kpis': [
-                    {'label': 'Total Appointments', 'value': str(total_appointments)},
-                    {'label': 'Avg Utilization', 'value': f'{avg_utilization:.1f}%'},
-                    {'label': 'Providers', 'value': str(len(results))},
-                ]
+                'professionals': results,
+                'kpis': {
+                    'total_patient_count': int(total_patients),
+                    'avg_biomarker_improvement': round(avg_improvement, 1),
+                    'patient_with_lab_data_pct': round(lab_data_pct, 1),
+                    'active_providers': num_providers
+                }
             }), 200
         else:
             return jsonify({
                 'status': 'success',
                 'start_date': start_date,
                 'end_date': end_date,
-                'data': [],
-                'kpis': [
-                    {'label': 'Total Appointments', 'value': '0'},
-                    {'label': 'Avg Utilization', 'value': '0%'},
-                    {'label': 'Providers', 'value': '0'},
-                ]
+                'professionals': [],
+                'kpis': {
+                    'total_patient_count': 0,
+                    'avg_biomarker_improvement': 0,
+                    'patient_with_lab_data_pct': 0,
+                    'active_providers': 0
+                }
             }), 200
 
     except Exception as e:
@@ -1358,7 +1383,8 @@ def get_clinical_outcomes():
         return jsonify({
             'status': 'error',
             'message': str(e),
-            'kpis': []
+            'professionals': [],
+            'kpis': {}
         }), 500
 
 
