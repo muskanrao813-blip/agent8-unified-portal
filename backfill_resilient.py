@@ -59,7 +59,7 @@ try:
     FROM deltalake.dl_standard_pbireporting.f_appointmentflattable
     WHERE YEAR(appointmentdate) = 2026
     AND doctorname IN ({doctors})
-    AND appointmentstatus != 'ANC'
+    AND appointmentstatus IN ('COM', 'BOOKED', 'ACT', 'WIC', 'RES')
     GROUP BY doctorname, appointmentdate
     """
 
