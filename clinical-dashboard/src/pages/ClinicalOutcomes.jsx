@@ -111,8 +111,8 @@ export default function ClinicalOutcomesPage({ startDate, endDate, setStartDate,
         }
 
         // Set providers with real cohort info and normalized improvement scores
-        if (data.professionals && Array.isArray(data.professionals)) {
-          const directorsData = data.professionals.map((p) => {
+        if (data.data && Array.isArray(data.data)) {
+          const directorsData = data.data.map((p) => {
             // API returns 'provider_name' from clinical-outcomes endpoint
             const providerName = p.provider_name || p.dietician || p.doctorname || 'Unknown';
             const improvInfo = improvMap[providerName] || { score: 0, pct: "N/A", improved: 0, total: 0 };
@@ -131,8 +131,8 @@ export default function ClinicalOutcomesPage({ startDate, endDate, setStartDate,
           setDirectors(directorsData);
 
           // Calculate metrics based on all data
-          const totalPatients = data.professionals.reduce((sum, d) => sum + (d.patient_count || 0), 0);
-          const totalWithLab = data.professionals.reduce((sum, d) => sum + (d.with_lab_data || 0), 0);
+          const totalPatients = data.data.reduce((sum, d) => sum + (d.patient_count || 0), 0);
+          const totalWithLab = data.data.reduce((sum, d) => sum + (d.with_lab_data || 0), 0);
           const labPct = totalPatients > 0 ? ((totalWithLab / totalPatients) * 100).toFixed(1) : 0;
 
           // Calculate Avg Biomarker Improvement from improvement data
@@ -148,7 +148,7 @@ export default function ClinicalOutcomesPage({ startDate, endDate, setStartDate,
             { ...TOP_METRICS[0], value: totalPatients.toLocaleString() },
             { ...TOP_METRICS[1], value: `+${avgImprovement.toFixed(1)}%` },
             { ...TOP_METRICS[2], value: `${labPct}%` },
-            { ...TOP_METRICS[3], value: data.professionals.length.toString() }
+            { ...TOP_METRICS[3], value: data.data.length.toString() }
           ]);
         }
 
