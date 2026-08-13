@@ -304,15 +304,16 @@ def query_professional_metrics(start_date, end_date):
             ''', (start_date, end_date, start_date, end_date))
 
             rows = cursor.fetchall()
-            cursor.close()
 
             # Convert psycopg3 rows to dict
             results = []
             if rows:
-                # Get column names from cursor description
+                # Get column names from cursor description BEFORE closing
                 col_names = [desc[0] for desc in cursor.description] if cursor.description else []
                 for row in rows:
                     results.append(dict(zip(col_names, row)))
+
+            cursor.close()
 
             logger.info(f"[DB-POSTGRES] SUCCESS: Aggregated metrics for {len(results)} providers")
             return results
