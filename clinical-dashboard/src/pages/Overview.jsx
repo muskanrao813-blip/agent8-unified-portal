@@ -40,14 +40,6 @@ export default function OverviewPage({ setPage, setSelectedProvider, startDate, 
         const qaData = qaRes.ok ? await qaRes.json() : { data: {} };
         const cohortData = cohortRes.ok ? await cohortRes.json() : { data: {} };
 
-        // Build QA score map
-        const qaMap = {};
-        if (qaData.data && typeof qaData.data === 'object') {
-          Object.entries(qaData.data).forEach(([dietician, qaInfo]) => {
-            qaMap[dietician] = qaInfo.avg_qa_score || "N/A";
-          });
-        }
-
         setKpis(dashData.kpis || []);
 
         // Map cached metrics to professional table format
@@ -62,7 +54,7 @@ export default function OverviewPage({ setPage, setSelectedProvider, startDate, 
               cap: prof.capacity,
               util: prof.utilization_pct,
               outcome: prof.improvement_score ? prof.improvement_score.toFixed(1) + "/" + prof.improvement_total : "0/0",
-              call: qaMap[prof.provider_name] || "N/A",
+              call: prof.qa_score ? prof.qa_score.toFixed(1) : "N/A",
               status: prof.status ? prof.status.toLowerCase() : "optimal",
               forecast: prof.forecast_7d || 0
             });
