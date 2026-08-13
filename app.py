@@ -100,6 +100,23 @@ COHORT_DEFINITIONS = {
                     'Mital Bhadania', 'Shikha Singh']
 }
 
+# Individual provider slot allocation (slots/day) - Master Workforce Config
+PROVIDER_DAILY_SLOTS = {
+    # IN-HOUSE AI (84 slots/day each)
+    'Prachi More': 84, 'Ambika Rode': 84, 'Geeta Maggu': 84,
+    'Gitanjali Malik sachdeva': 84, 'Chandni Sharma': 84, 'Tejashree Thorat': 84,
+    # IN-HOUSE OTHERS (14 slots/day each)
+    'Chaithra B': 14, 'Shefali Dindorkar': 14,
+    # IN-HOUSE MC (14 slots/day for dieticians, 4 for doctor)
+    'Sweta Naik': 14, 'Divya Pandey': 14, 'Trupti Nakar': 14,
+    'Mekala Reddy': 4,  # Doctor (not dietician)
+    # CONTRACTUAL (22 slots/day each)
+    'Hemlata Alawadhi': 22, 'Ruchi Singh': 22, 'Nisha Sharma': 22, 'Hitesh Kumar': 22,
+    'Priyadharshini R': 22, 'Avani Mekala': 22, 'Neha Suryawanshi': 22,
+    'Homeshwar Mandawliya': 22, 'Trapti Bhardwaj': 22, 'Asra Jabeen': 22,
+    'Midhat Zehra': 22, 'Aparna Bhardwaj': 22, 'Mital Bhadania': 22, 'Shikha Singh': 22
+}
+
 # Slots per day (TOTAL COHORT capacity, not per person)
 COHORT_CAPACITY = {
     'IN-HOUSE AI': 504,          # 6 dieticians × 84 each
@@ -1722,22 +1739,9 @@ def get_professionals_cached():
         for idx, row in enumerate(rows, 1):
             provider_name, cohort, appts, avg_util, qa_score, improvement, last_update = row
 
-            # Calculate capacity based on cohort and working days (NOT from summed daily records)
-            if cohort == 'IN-HOUSE AI':
-                daily_slots = 84
-                working_days = d_inhouse
-            elif cohort == 'IN-HOUSE OTHERS':
-                daily_slots = 14
-                working_days = d_inhouse
-            elif cohort == 'IN-HOUSE MC':
-                daily_slots = 14
-                working_days = d_inhouse
-            elif cohort == 'CONTRACTUAL':
-                daily_slots = 22
-                working_days = d_contractual
-            else:
-                daily_slots = 22
-                working_days = d_contractual
+            # Calculate capacity using individual provider slot allocation
+            daily_slots = PROVIDER_DAILY_SLOTS.get(provider_name, 22)  # Default to 22 if not found
+            working_days = d_inhouse if cohort in ['IN-HOUSE AI', 'IN-HOUSE OTHERS', 'IN-HOUSE MC'] else d_contractual
 
             total_cap = daily_slots * working_days
 
