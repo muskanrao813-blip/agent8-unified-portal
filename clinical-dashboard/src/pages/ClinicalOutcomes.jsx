@@ -110,8 +110,8 @@ export default function ClinicalOutcomesPage({ startDate, endDate, setStartDate,
         // Set providers with real cohort info and normalized improvement scores
         if (data.data && Array.isArray(data.data)) {
           const directorsData = data.data.map((p) => {
-            // API returns 'dietician', not 'doctorname'
-            const providerName = p.dietician || p.doctorname || 'Unknown';
+            // API returns 'provider_name' from clinical-outcomes endpoint
+            const providerName = p.provider_name || p.dietician || p.doctorname || 'Unknown';
             const improvInfo = improvMap[providerName] || { score: 0, pct: "N/A", improved: 0, total: 0 };
             return {
               initials: providerName.split(" ").map(w => w[0]).join(""),
