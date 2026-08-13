@@ -283,47 +283,38 @@ def query_professional_metrics(start_date, end_date):
             # psycopg3 cursor with dict-like rows
             cursor = postgres_conn.cursor()
             logger.info(f"[DB-POSTGRES] Executing: Fetch ALL overlapping periods for {start_date} to {end_date}")
-            # Fetch ALL overlapping periods - Python will select best match
+            # Query aggregated daily metrics for the date range
             cursor.execute('''
-                SELECT provider_name, cohort, appts_count, capacity, utilization_pct,
-                       qa_score, improvement_score, improvement_total, status, forecast_7d,
-                       patient_count, with_lab_data, without_lab_data, start_date, end_date
-                FROM professional_metrics
-                WHERE start_date <= %s AND end_date >= %s
-                ORDER BY provider_name, end_date DESC, start_date DESC
-            ''', (end_date, start_date))
+                SELECT provider_name, cohort,
+                       SUM(appts_count) as appts_count,
+                       AVG(capacity) as capacity,
+                       AVG(utilization_pct) as utilization_pct,
+                       AVG(qa_score) as qa_score,
+                       AVG(improvement_score) as improvement_score,
+                       AVG(improvement_total) as improvement_total,
+                       'GOOD' as status, 0 as forecast_7d,
+                       SUM(patient_count) as patient_count,
+                       SUM(with_lab_data) as with_lab_data,
+                       SUM(without_lab_data) as without_lab_data,
+                       %s as start_date, %s as end_date
+                FROM professional_daily_metrics
+                WHERE metric_date >= %s AND metric_date <= %s
+                GROUP BY provider_name, cohort
+                ORDER BY provider_name
+            ''', (start_date, end_date, start_date, end_date))
 
             rows = cursor.fetchall()
             cursor.close()
 
             # Convert psycopg3 rows to dict
-            raw_results = []
+            results = []
             if rows:
                 # Get column names from cursor description
                 col_names = [desc[0] for desc in cursor.description] if cursor.description else []
                 for row in rows:
-                    raw_results.append(dict(zip(col_names, row)))
+                    results.append(dict(zip(col_names, row)))
 
-            # SELECT BEST MATCHING PERIOD FOR EACH PROVIDER (in Python)
-            from datetime import datetime as dt
-            user_span_days = (dt.strptime(end_date, '%Y-%m-%d') - dt.strptime(start_date, '%Y-%m-%d')).days
-
-            best_per_provider = {}
-            for row in raw_results:
-                provider = row['provider_name']
-                period_span = (row['end_date'] - row['start_date']).days
-                span_diff = abs(period_span - user_span_days)
-
-                # Select if no prior entry, or if this period is a better match
-                if provider not in best_per_provider:
-                    best_per_provider[provider] = (row, span_diff)
-                elif span_diff < best_per_provider[provider][1]:
-                    best_per_provider[provider] = (row, span_diff)
-
-            # Build final results (remove span_diff from output)
-            results = [v[0] for v in best_per_provider.values()]
-
-            logger.info(f"[DB-POSTGRES] SUCCESS: Selected best period for {len(results)} providers")
+            logger.info(f"[DB-POSTGRES] SUCCESS: Aggregated metrics for {len(results)} providers")
             return results
         except Exception as e:
             logger.error(f"[DB-POSTGRES] ERROR: {str(e)}")
