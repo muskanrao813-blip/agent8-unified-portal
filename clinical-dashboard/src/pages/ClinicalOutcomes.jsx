@@ -116,14 +116,14 @@ export default function ClinicalOutcomesPage({ startDate, endDate, setStartDate,
         // Set providers with real cohort info and normalized improvement scores
         if (data.data && Array.isArray(data.data)) {
           const directorsData = data.data.map((p) => {
-            // API returns 'provider_name' from clinical-outcomes endpoint
-            const providerName = p.provider_name || p.dietician || p.doctorname || 'Unknown';
+            // API returns 'provider' field with actual provider name
+            const providerName = p.provider || 'Unknown';
             const improvInfo = improvMap[providerName] || { score: 0, pct: "N/A", improved: 0, total: 0 };
             return {
               initials: providerName.split(" ").map(w => w[0]).join(""),
               name: providerName,
               cohort: p.cohort || 'UNKNOWN',
-              count: p.patient_count?.toLocaleString?.() || p.patient_count || "0",
+              count: p.appointments?.toLocaleString?.() || p.appointments || "0",
               improvementScore: improvInfo.score,
               improvementPct: improvInfo.pct,
               patientsTotal: improvInfo.total,
@@ -134,7 +134,7 @@ export default function ClinicalOutcomesPage({ startDate, endDate, setStartDate,
           setDirectors(directorsData);
 
           // Calculate metrics based on all data
-          const totalPatients = data.data.reduce((sum, d) => sum + (d.patient_count || 0), 0);
+          const totalPatients = data.data.reduce((sum, d) => sum + (d.appointments || 0), 0);
           const totalWithLab = data.data.reduce((sum, d) => sum + (d.with_lab_data || 0), 0);
           const labPct = totalPatients > 0 ? ((totalWithLab / totalPatients) * 100).toFixed(1) : 0;
 
