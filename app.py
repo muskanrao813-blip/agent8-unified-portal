@@ -117,6 +117,12 @@ PROVIDER_DAILY_SLOTS = {
     'Midhat Zehra': 22, 'Aparna Bhardwaj': 22, 'Mital Bhadania': 22, 'Shikha Singh': 22
 }
 
+# Provider-specific working day schedules
+# 'standard' = normal cohort schedule, 'weekdays-only' = Monday-Friday only
+PROVIDER_SCHEDULES = {
+    'Mekala Reddy': 'weekdays-only',  # Doctor: Mon-Fri only, no Saturdays/Sundays
+}
+
 # Slots per day (TOTAL COHORT capacity, not per person)
 COHORT_CAPACITY = {
     'IN-HOUSE AI': 504,          # 6 dieticians × 84 each
@@ -321,6 +327,26 @@ def count_working_days_contractual(start_str, end_str):
 
         # All other days (Mon-Sat) count
         working_days += 1
+        current += timedelta(days=1)
+
+    return working_days
+
+def count_working_days_weekdays_only(start_str, end_str):
+    """Count working days for providers with weekday-only schedule (Mon-Fri only, no Sat/Sun)"""
+    from datetime import datetime, timedelta
+    start = datetime.strptime(start_str, '%Y-%m-%d')
+    end = datetime.strptime(end_str, '%Y-%m-%d')
+
+    working_days = 0
+    current = start
+
+    while current <= end:
+        day_of_week = current.weekday()  # Monday=0, ..., Friday=4, Saturday=5, Sunday=6
+
+        # Only count Monday-Friday (0-4)
+        if day_of_week < 5:
+            working_days += 1
+
         current += timedelta(days=1)
 
     return working_days
@@ -1739,9 +1765,17 @@ def get_professionals_cached():
         for idx, row in enumerate(rows, 1):
             provider_name, cohort, appts, avg_util, qa_score, improvement, last_update = row
 
-            # Calculate capacity using individual provider slot allocation
+            # Calculate capacity using individual provider slot allocation and schedule
             daily_slots = PROVIDER_DAILY_SLOTS.get(provider_name, 22)  # Default to 22 if not found
-            working_days = d_inhouse if cohort in ['IN-HOUSE AI', 'IN-HOUSE OTHERS', 'IN-HOUSE MC'] else d_contractual
+
+            # Determine working days based on provider's schedule
+            provider_schedule = PROVIDER_SCHEDULES.get(provider_name, 'standard')
+            if provider_schedule == 'weekdays-only':
+                # Monday-Friday only (no Saturdays, no Sundays)
+                working_days = count_working_days_weekdays_only(start_date, end_date)
+            else:
+                # Standard cohort schedule
+                working_days = d_inhouse if cohort in ['IN-HOUSE AI', 'IN-HOUSE OTHERS', 'IN-HOUSE MC'] else d_contractual
 
             total_cap = daily_slots * working_days
 
