@@ -93,6 +93,9 @@ export default function ClinicalOutcomesPage({ startDate, endDate, setStartDate,
         const improvData = await improvRes.json();
 
         console.log("[ClinicalOutcomes] API responses received");
+        console.log("[ClinicalOutcomes] Data structure:", Object.keys(data));
+        console.log("[ClinicalOutcomes] data.professionals type:", typeof data.professionals, "isArray:", Array.isArray(data.professionals));
+        if (data.professionals) console.log("[ClinicalOutcomes] professionals count:", data.professionals.length);
 
         // Create improvement map with normalized scores
         const improvMap = {};
