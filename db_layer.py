@@ -287,7 +287,7 @@ def query_professional_metrics(start_date, end_date):
             cursor.execute('''
                 SELECT provider_name, cohort,
                        SUM(appts_count) as appts_count,
-                       AVG(capacity) as capacity,
+                       AVG(capacity) * COUNT(DISTINCT metric_date) as capacity,
                        AVG(utilization_pct) as utilization_pct,
                        AVG(qa_score) as qa_score,
                        AVG(improvement_score) as improvement_score,
